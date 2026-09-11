@@ -4,9 +4,29 @@ import { AppError } from "./errors.js";
 import { extractDocument } from "./extract-document.js";
 import { MAX_UPLOAD_BYTES } from "./document-validation.js";
 import { createProvider } from "./providers/index.js";
+import { exportPdf } from "./export-pdf.js";
 import { providerFailed, validateOptimizedResume, validateOptimizeInput } from "./resume-validation.js";
 
 const PROVIDERS = new Set(["openai", "deepseek", "qwen"]);
+
+function validateExportInput(value) {
+  const input = validateOptimizeInput({
+    facts: value?.facts,
+    targetRole: value?.resume?.targetRole,
+  });
+  try {
+    const validated = validateOptimizedResume(value?.resume, input.facts, "export", "export");
+    return {
+      facts: input.facts,
+      resume: { summary: validated.summary, targetRole: validated.targetRole, sections: validated.sections },
+    };
+  } catch (error) {
+    if (error instanceof AppError && error.code === "provider_failed") {
+      throw new AppError(400, "request_invalid", "请提供有效的简历事实和优化结果。");
+    }
+    throw error;
+  }
+}
 
 export function createApp({ config, configError, fetchImpl, services } = {}) {
   const app = express();
@@ -57,6 +77,18 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
         throw providerFailed();
       }
       response.json({ resume: validateOptimizedResume(generated, input.facts, config.provider, config.model) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/export", express.json({ limit: "4mb" }), async (request, response, next) => {
+    try {
+      const input = validateExportInput(request.body);
+      const pdf = await (services?.exportPdf ?? exportPdf)(input);
+      response.type("application/pdf");
+      response.setHeader("Content-Disposition", 'attachment; filename="optimized-resume.pdf"');
+      response.send(pdf);
     } catch (error) {
       next(error);
     }
