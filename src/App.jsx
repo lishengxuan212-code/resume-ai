@@ -48,6 +48,7 @@ export function App() {
   const [configError, setConfigError] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [notice, setNotice] = useState('');
+  const citedSourceIds = new Set([...(facts?.education ?? []), ...(facts?.experiences ?? [])].flatMap(entry => entry.sourceIds));
   const busy = status === 'extracting' || status === 'optimizing' || downloading;
   const statusText = status === 'extracting' ? '正在识别简历' : status === 'optimizing' ? '正在优化简历' : downloading ? '正在生成 PDF' : status === 'error' ? error : notice || ({ idle: '请选择简历或在线填写。', reviewing: '请核对并编辑简历事实。', ready: '简历优化已完成，可以查看结果并下载 PDF。' }[status]);
   const close = () => setPanel(null);
@@ -68,9 +69,14 @@ export function App() {
     const issue = validateFile(nextFile);
     if (issue) { fail(issue); return; }
     operation.current = true;
-    setFile(nextFile); setFacts(null); setResume(null); setError(''); setNotice(''); setStatus('extracting'); setPanel('processing');
+    const previousFile = file;
+    setFile(nextFile); setError(''); setNotice(''); setStatus('extracting'); setPanel('processing');
     try { const result = await extractResume(nextFile); beginReview(result.facts); }
-    catch (issue) { fail(issue); }
+    catch (issue) {
+      if (facts) setFile(previousFile);
+      fail(issue);
+      setPanel(resume ? 'result' : facts ? 'review' : 'processing');
+    }
     finally { operation.current = false; }
   }
   function editFacts(next) { setFacts(next); setResume(null); setNotice(''); setError(''); setStatus('reviewing'); }
@@ -166,7 +172,13 @@ export function App() {
           <FactEntries title="经历" fields={experienceFields} entries={facts.experiences} sources={facts.sourceBlocks} onChange={experiences => editFacts({ ...facts, experiences })} />
           <section className="fact-section"><h3>技能</h3><label className="field">已具备的技能，每行一项<textarea value={facts.skills.join('\n')} maxLength={12000} rows={3} onChange={e => editFacts({ ...facts, skills: e.target.value.split('\n') })} /></label></section>
           <section className="fact-section"><h3>来源原文</h3><p className="section-note">请在原文中补全事实依据。修改文本会保留其关联；添加教育或经历时，请勾选对应原文。</p>
-            {facts.sourceBlocks.map((block, index) => <label className="field" key={block.id}>原文 {index + 1}{block.page ? ` · 第 ${block.page} 页` : ''}<textarea value={block.text} rows={5} maxLength={12000} required onChange={e => editFacts({ ...facts, sourceBlocks: facts.sourceBlocks.map((item, i) => i === index ? { ...item, text: e.target.value } : item) })} /></label>)}
+            {facts.sourceBlocks.map((block, index) => <div key={block.id}>
+              <label className="field">原文 {index + 1}{block.page ? ` · 第 ${block.page} 页` : ''}<textarea value={block.text} rows={5} maxLength={12000} required onChange={e => editFacts({ ...facts, sourceBlocks: facts.sourceBlocks.map((item, i) => i === index ? { ...item, text: e.target.value } : item) })} /></label>
+              {/^review-b\d+$/.test(block.id) && <>
+                <button className="text-button" type="button" disabled={citedSourceIds.has(block.id)} onClick={() => { if (!citedSourceIds.has(block.id)) editFacts({ ...facts, sourceBlocks: facts.sourceBlocks.filter(item => item.id !== block.id) }); }}>删除原文 {index + 1}</button>
+                {citedSourceIds.has(block.id) && <p className="section-note">这段原文已被教育或经历引用，取消关联后可删除。</p>}
+              </>}
+            </div>)}
             <button className="button secondary" type="button" disabled={facts.sourceBlocks.length >= 30} onClick={() => { let number = 1; while (facts.sourceBlocks.some(block => block.id === `review-b${number}`)) number++; editFacts({ ...facts, sourceBlocks: [...facts.sourceBlocks, { id: `review-b${number}`, text: '', page: null }] }); }}>补充来源原文</button>
           </section>
           {facts.warnings.length > 0 && <ul className="section-note">{facts.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
