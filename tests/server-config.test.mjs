@@ -12,3 +12,10 @@ test("reads the selected OpenAI model from server-only environment variables", (
 test("marks an absent active-provider key as unconfigured", () => {
   assert.equal(readConfig({ AI_PROVIDER: "deepseek" }).configured, false);
 });
+
+test("marks whitespace-only active-provider credentials as unconfigured", () => {
+  assert.equal(
+    readConfig({ AI_PROVIDER: "qwen", QWEN_API_KEY: "   ", QWEN_MODEL: "\t" }).configured,
+    false,
+  );
+});

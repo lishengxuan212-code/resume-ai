@@ -3,13 +3,17 @@ import { AppError } from "./errors.js";
 
 const PROVIDERS = new Set(["openai", "deepseek", "qwen"]);
 
-export function createApp({ config, fetchImpl, services } = {}) {
+export function createApp({ config, configError, fetchImpl, services } = {}) {
   const app = express();
   void fetchImpl;
   void services;
 
   app.get("/api/config", (request, response, next) => {
     try {
+      if (configError) {
+        throw configError;
+      }
+
       if (!PROVIDERS.has(config?.provider)) {
         throw new AppError(503, "provider_invalid", "Unsupported AI provider");
       }

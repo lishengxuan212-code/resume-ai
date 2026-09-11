@@ -14,7 +14,7 @@ export function readConfig(env) {
     throw new AppError(503, "provider_invalid", "Unsupported AI provider");
   }
 
-  const apiKey = env[variables.apiKey];
-  const model = env[variables.model];
+  const apiKey = env[variables.apiKey]?.trim();
+  const model = env[variables.model]?.trim();
   return { provider, model, apiKey, configured: Boolean(apiKey && model) };
 }
