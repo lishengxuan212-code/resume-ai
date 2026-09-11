@@ -9,7 +9,7 @@
     "dev:full": "concurrently \"npm run dev\" \"npm run server\"",
     "build": "vite build && node scripts/prepare-sites-build.mjs",
     "preview": "vite preview",
-    "test": "node --test tests/intake.test.mjs tests/server-config.test.mjs tests/server-app.test.mjs tests/document-validation.test.mjs tests/extract-document.test.mjs tests/extract-api.test.mjs",
+    "test": "node --test tests/intake.test.mjs tests/server-config.test.mjs tests/server-app.test.mjs tests/document-validation.test.mjs tests/extract-document.test.mjs tests/extract-api.test.mjs tests/providers.test.mjs tests/resume-validation.test.mjs tests/optimize-api.test.mjs",
     "test:sites": "node --test tests/sites-worker.test.mjs"
   },
   "dependencies": {

@@ -1,0 +1,22 @@
+import { buildResumePrompt } from "../prompt.js";
+import { providerFailed } from "../resume-validation.js";
+
+const ENDPOINTS = new Map([
+  ["deepseek", "https://api.deepseek.com/chat/completions"],
+  ["qwen", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"],
+]);
+
+export async function generateCompatibleChat(config, input, fetchImpl) {
+  const response = await fetchImpl(ENDPOINTS.get(config.provider), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
+    redirect: "error",
+    body: JSON.stringify({ model: config.model, messages: buildResumePrompt(input), response_format: { type: "json_object" } }),
+  });
+  if (!response.ok) throw providerFailed();
+  const data = await response.json();
+  const choice = data?.choices?.[0];
+  const content = choice?.message?.content;
+  if (data?.error || choice?.message?.refusal || (choice?.finish_reason && choice.finish_reason !== "stop") || typeof content !== "string" || !content.trim()) throw providerFailed();
+  return JSON.parse(content);
+}
