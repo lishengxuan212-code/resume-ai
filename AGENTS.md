@@ -2,7 +2,9 @@
 
 ## Confirmed product direction
 
-Use docs/selected-homepage.png and docs/homepage-design.md as the approved homepage target. Pure black, artistic Chinese Song typography, frosted OFFER envelope. No moon, neon, workflow steps, or open-ended writing prompt. OFFER floats ±6px over 4 seconds with gentle brightness breathing. Keep text/controls static. Desktop-first, responsive on phones. Frontend preview only; never claim AI processing or persistent saving is connected.
+Use docs/selected-homepage.png and docs/homepage-design.md as the approved homepage target. Pure black, artistic Chinese Song typography, frosted OFFER envelope. No moon, neon, workflow steps, or open-ended writing prompt. OFFER floats ±6px over 4 seconds with gentle brightness breathing. Keep text/controls static. Desktop-first, responsive on phones.
+
+The product now moves beyond a frontend preview: implement real resume extraction, provider-selectable AI optimization, and PDF export. Do not claim an operation completed unless its backend task and result have completed. AI providers must be selectable by configuration (initial providers: OpenAI, DeepSeek, and Alibaba Cloud Qwen); browser code never receives provider credentials.
 
 Run the local server yourself and open the preview in the browser available to this environment. Do not give the user server-start instructions when you can run it.
 
