@@ -14,7 +14,12 @@ function presentText(value) {
 
 function ensureSpace(document, height) {
   const pageBottom = document.page.height - document.page.margins.bottom;
-  if (document.y + Math.min(height, pageBottom - document.page.margins.top) + PAGE_BOTTOM_BUFFER > pageBottom) {
+  const printableHeight = pageBottom - document.page.margins.top;
+  if (
+    height <= printableHeight
+    && document.y > document.page.margins.top
+    && document.y + height + PAGE_BOTTOM_BUFFER > pageBottom
+  ) {
     document.addPage();
   }
 }

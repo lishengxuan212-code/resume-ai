@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { validateOptimizeInput } from "../server/resume-validation.js";
 
 const facts = {
   name: "张三",
@@ -32,13 +33,16 @@ async function getExportPdf() {
   return module.exportPdf;
 }
 
-async function extractText(pdf) {
+async function extractPageTexts(pdf) {
   const document = await getDocument({ data: new Uint8Array(pdf) }).promise;
-  const pages = await Promise.all(Array.from({ length: document.numPages }, async (_, index) => {
+  return Promise.all(Array.from({ length: document.numPages }, async (_, index) => {
     const page = await document.getPage(index + 1);
     return (await page.getTextContent()).items.map((item) => item.str).join(" ");
   }));
-  return pages.join(" ");
+}
+
+async function extractText(pdf) {
+  return (await extractPageTexts(pdf)).join(" ");
 }
 
 test("exports a non-empty Chinese PDF from reviewed facts and resume", async () => {
@@ -79,4 +83,16 @@ test("skips labels for absent optional values", async () => {
 
   const text = await extractText(pdf);
   assert.doesNotMatch(text, /目标岗位|摘要|undefined|null/);
+});
+
+test("keeps an allowed long contact on the first PDF page", async () => {
+  const exportPdf = await getExportPdf();
+  const acceptedFacts = validateOptimizeInput({
+    facts: { ...facts, name: "", contact: "联".repeat(8_000) },
+    targetRole: resume.targetRole,
+  }).facts;
+
+  const pages = await extractPageTexts(await exportPdf({ facts: acceptedFacts, resume }));
+
+  assert.match(pages[0], /联/);
 });
