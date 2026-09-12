@@ -46,7 +46,9 @@ async function extractPdf(buffer) {
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
       const textContent = await page.getTextContent();
-      const rawText = textContent.items.map((item) => item.str).join(" ");
+      // Preserve parser line boundaries. Flattening every item into one line
+      // loses the headings and date rows needed for reliable resume parsing.
+      const rawText = textContent.items.map((item) => `${item.str}${item.hasEOL ? "\n" : " "}`).join("");
       const text = rawText.trim();
       // PDF line endings are metadata. Retain the established space-normalized
       // text while using those positions to avoid splitting ordinary lines.

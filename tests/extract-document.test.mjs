@@ -39,12 +39,12 @@ test('PDF enforces source count across pages, not separately per page', async ()
     error => error.status === 400 && error.code === 'document_too_long');
 });
 
-test('PDF prefers parser line endings while retaining existing space normalization', async () => {
+test('PDF preserves parser line endings for structured resume extraction', async () => {
   const buffer = await pdfWithPages([['A'.repeat(7000), 'B'.repeat(6000)]]);
   const { facts } = await extractDocument({ originalname: 'lines.pdf', buffer, size: buffer.length });
   assert.equal(facts.sourceBlocks[0].text.trim(), 'A'.repeat(7000));
   assert.equal(facts.sourceBlocks[1].text.trim(), 'B'.repeat(6000));
-  assert.match(facts.sourceBlocks.map(block => block.text).join(''), /^A{7000} +B{6000}$/);
+  assert.match(facts.sourceBlocks.map(block => block.text).join(''), /^A{7000}\s+B{6000}$/);
   assert.doesNotThrow(() => validateOptimizeInput({ facts, targetRole: '产品助理' }));
 });
 
