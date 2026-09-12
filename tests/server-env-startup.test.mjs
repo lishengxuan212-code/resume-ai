@@ -75,6 +75,7 @@ test("local server startup loads the selected provider configuration from an env
       provider: "deepseek",
       model: "dummy-startup-model",
       configured: true,
+      methodologyVersion: '0.1',
     });
   } finally {
     await stop(child);
@@ -100,6 +101,7 @@ test("generic server startup uses injected provider variables without an env fil
       provider: "qwen",
       model: "dummy-process-model",
       configured: true,
+      methodologyVersion: '0.1',
     });
   } finally {
     await stop(child);

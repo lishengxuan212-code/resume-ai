@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { validateOptimizeInput } from '../server/resume-validation.js';
 const state = await import('../src/resume-state.js').catch(error => {
   if (error.code === 'ERR_MODULE_NOT_FOUND') return {};
   throw error;
@@ -51,4 +52,46 @@ test('review cannot submit empty sources or entries without valid citations', ()
   const missing = state.draftToFacts(draft);
   missing.experiences[0].sourceIds = [];
   assert.throws(() => state.prepareReviewedFacts(missing), /来源/);
+});
+
+test('new work facts get a source automatically without replacing imported text', () => {
+  const facts = state.draftToFacts(draft);
+  const updated = state.updateReviewedEntry(facts, 'experiences', 0, { description: '核对后补充：整理实际访谈记录。' });
+  const entry = updated.experiences[0];
+  assert.equal(updated.sourceBlocks.find(block => block.id === 'form-b3').text, '负责用户访谈\n整理反馈');
+  assert.match(entry.sourceIds[0], /^review-entry-/);
+  assert.match(updated.sourceBlocks.find(block => block.id === entry.sourceIds[0]).text, /核对后补充/);
+  assert.doesNotThrow(() => state.prepareReviewedFacts(updated));
+  assert.doesNotThrow(() => validateOptimizeInput({ facts: state.prepareReviewedFacts(updated), targetRole: '产品助理' }));
+  const revised = state.updateReviewedEntry(updated, 'experiences', 0, { title: '产品助理' });
+  assert.equal(revised.sourceBlocks.length, updated.sourceBlocks.length, 'editing must reuse the same source');
+  assert.deepEqual(revised.experiences[0].sourceIds, entry.sourceIds);
+});
+
+test('adding and deleting education manages only its automatically created source', () => {
+  const facts = state.draftToFacts(draft);
+  facts.education.push({ school: '', major: '', degree: '', dates: '', sourceIds: [] });
+  const updated = state.updateReviewedEntry(facts, 'education', 1, { school: '补充大学' });
+  assert.doesNotThrow(() => state.prepareReviewedFacts(updated));
+  const removed = state.removeReviewedEntry(updated, 'education', 1);
+  assert.deepEqual(removed.sourceBlocks, facts.sourceBlocks);
+  assert.equal(removed.education.length, 1);
+});
+
+test('skill corrections are recorded once and empty new entries are omitted', () => {
+  let facts = state.draftToFacts(draft);
+  facts.education.push({ school: '', major: '', degree: '', dates: '', sourceIds: [] });
+  facts = state.updateReviewedSkills(facts, '数据分析：Excel');
+  facts = state.updateReviewedSkills(facts, '数据分析：Excel\n设计：Axure');
+  const saved = state.prepareReviewedFacts(facts);
+  assert.equal(saved.education.length, 1);
+  assert.equal(saved.sourceBlocks.filter(block => block.id === 'review-skills').length, 1);
+  assert.deepEqual(saved.skills, ['数据分析：Excel', '设计：Axure']);
+});
+
+test('automatic sources respect the extraction limit instead of silently losing edits', () => {
+  const facts = state.draftToFacts(draft);
+  facts.sourceBlocks = Array.from({ length: 30 }, (_, i) => ({ id: `p${i}-b1`, text: '原文', page: 1 }));
+  assert.throws(() => state.updateReviewedEntry(facts, 'experiences', 0, { description: '补充事实' }), /上限/);
+  assert.throws(() => state.updateReviewedSkills(facts, '新技能'), /上限/);
 });

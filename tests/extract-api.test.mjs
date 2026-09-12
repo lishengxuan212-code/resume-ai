@@ -4,6 +4,7 @@ import http from "node:http";
 import test from "node:test";
 import { createApp } from "../server/app.js";
 import { docxWithParagraphs } from "./helpers/docx.mjs";
+import { numberedResumePdf, expectedResponsibilities } from './helpers/positioned-pdf.mjs';
 
 async function withApp(run) {
   const server = http.createServer(createApp({ config: { provider: "openai", model: null, configured: false } }));
@@ -39,6 +40,18 @@ test("returns facts from a multipart PDF upload", async () => {
   assert.deepEqual((await response.json()).facts.sourceBlocks, [
     { id: "p1-b1", text: "Resume Project Experience", page: 1 },
   ]);
+});
+
+test('upload returns fifth and sixth responsibility bodies in visual order for the review page', async () => {
+  const buffer = await numberedResumePdf();
+  const response = await withApp(url => fetch(`${url}/api/extract`, {
+    method: 'POST', body: formWithResume(buffer, 'numbered.pdf'),
+  }));
+  assert.equal(response.status, 200);
+  const { facts } = await response.json();
+  assert.equal(facts.experiences.length, 1);
+  assert.equal(facts.experiences[0].description, expectedResponsibilities);
+  assert.deepEqual(facts.experiences[0].sourceIds, ['p1-b1']);
 });
 
 test("returns a readable 400 response when the resume field is absent", async () => {

@@ -5,7 +5,10 @@ import { extractDocument } from "./extract-document.js";
 import { MAX_UPLOAD_BYTES } from "./document-validation.js";
 import { createProvider } from "./providers/index.js";
 import { exportPdf } from "./export-pdf.js";
-import { providerFailed, validateOptimizedResume, validateOptimizeInput } from "./resume-validation.js";
+import { validateDiagnosisInput, validateOptimizedResume, validateOptimizeInput } from './resume-validation.js';
+import { safeProviderError } from "./provider-error.js";
+import { validateDiagnosis } from './diagnosis-validation.js';
+import { METHODOLOGY_VERSION } from './methodology/index.js';
 
 const PROVIDERS = new Set(["openai", "deepseek", "qwen"]);
 
@@ -15,7 +18,10 @@ function validateExportInput(value) {
     targetRole: value?.resume?.targetRole,
   });
   try {
-    const validated = validateOptimizedResume(value?.resume, input.facts, "export", "export");
+    // Export is a deliberate user confirmation point. Keep structural and hidden
+    // provenance checks, but do not reject facts the user has directly edited in
+    // the final resume after AI generation.
+    const validated = validateOptimizedResume(value?.resume, input.facts, "export", "export", { userConfirmedEdits: true });
     return {
       facts: input.facts,
       resume: { summary: validated.summary, targetRole: validated.targetRole, sections: validated.sections },
@@ -46,6 +52,7 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
         provider: config.provider,
         model: config.model ?? null,
         configured: config.configured,
+        methodologyVersion: METHODOLOGY_VERSION,
         ...(config.providers?.filter((item) => item.configured).length > 1 ? { fallbackProviders: config.providers.filter((item) => item.configured).map((item) => ({ provider: item.provider, model: item.model })) } : {}),
       });
     } catch (error) {
@@ -64,6 +71,20 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
     }
   });
 
+  app.post('/api/diagnose', express.json({ limit: '4mb' }), async (request, response, next) => {
+    try {
+      const input = validateDiagnosisInput(request.body);
+      if (configError) throw configError;
+      if (services?.diagnoseResume && !config?.configured) throw new AppError(503, 'provider_unconfigured', '当前 AI 服务尚未配置。');
+      const provider = services?.diagnoseResume ? null : createProvider(config, fetchImpl);
+      let generated;
+      try { generated = services?.diagnoseResume ? await services.diagnoseResume(input) : await provider.diagnoseResume(input); }
+      catch (error) { throw safeProviderError(error); }
+      const diagnosis = validateDiagnosis(generated, input.facts, generated.provider ?? config.provider, generated.model ?? config.model, { ruleIds: input.ruleIds });
+      response.json({ diagnosis });
+    } catch (error) { next(error); }
+  });
+
   app.post("/api/optimize", express.json({ limit: "4mb" }), async (request, response, next) => {
     try {
       const input = validateOptimizeInput(request.body);
@@ -79,10 +100,11 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
         } else {
           generated = await provider.generateResume(input);
         }
-      } catch {
-        throw providerFailed();
+      } catch (error) {
+        throw safeProviderError(error);
       }
-      response.json({ resume: validateOptimizedResume(generated, input.facts, services?.optimizeResume ? config.provider : generated.provider ?? config.provider, services?.optimizeResume ? config.model : generated.model ?? config.model) });
+      const resume = validateOptimizedResume(generated, input.facts, services?.optimizeResume ? config.provider : generated.provider ?? config.provider, services?.optimizeResume ? config.model : generated.model ?? config.model, { ruleIds: input.ruleIds, diagnosis: input.diagnosis, answers: input.answers });
+      response.json({ resume, facts: input.facts });
     } catch (error) {
       next(error);
     }

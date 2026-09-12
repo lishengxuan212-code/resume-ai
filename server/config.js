@@ -1,4 +1,5 @@
 import { AppError } from "./errors.js";
+import { DEFAULT_AI_TIMEOUT_MS, MAX_AI_TIMEOUT_MS } from './provider-settings.js';
 
 const PROVIDERS = {
   openai: { apiKey: "OPENAI_API_KEY", model: "OPENAI_MODEL" },
@@ -13,7 +14,7 @@ export function readConfig(env) {
   }
   const rawTimeout = env.AI_TIMEOUT_MS?.trim() ?? "";
   const parsedTimeout = /^\d+$/.test(rawTimeout) ? Number(rawTimeout) : NaN;
-  const timeoutMs = Number.isInteger(parsedTimeout) && parsedTimeout >= 1000 && parsedTimeout <= 120000 ? parsedTimeout : 30000;
+  const timeoutMs = Number.isInteger(parsedTimeout) && parsedTimeout >= 1000 && parsedTimeout <= MAX_AI_TIMEOUT_MS ? parsedTimeout : DEFAULT_AI_TIMEOUT_MS;
   const providers = requested.map((provider) => {
     const variables = PROVIDERS[provider];
     const apiKey = env[variables.apiKey]?.trim();

@@ -22,7 +22,7 @@ const resume = {
       title: "产品实习生",
       organization: "示例公司",
       dates: "2025.01 - 2025.06",
-      bullets: ["负责产品用户访谈"],
+      bullets: [{ title: "用户访谈", text: "负责产品用户访谈" }],
       sourceIds: ["p1-b1"],
     }],
   }],
@@ -49,11 +49,14 @@ test("exports a non-empty Chinese PDF from reviewed facts and resume", async () 
   const exportPdf = await getExportPdf();
   assert.equal(typeof exportPdf, "function");
 
-  const pdf = await exportPdf({ facts, resume });
+  const pdf = await exportPdf({ facts, resume: { ...resume, warnings: ['这是一条只在当前页面展示的简历提醒'] } });
 
   assert.ok(Buffer.isBuffer(pdf));
   assert.equal(pdf.subarray(0, 5).toString("ascii"), "%PDF-");
   assert.ok(pdf.length > 2_000);
+  const text = await extractText(pdf);
+  assert.match(text, /用户访谈/);
+  assert.doesNotMatch(text, /只在当前页面展示的简历提醒/);
 });
 
 test("exports long reviewed content across pages without throwing", async () => {
@@ -66,7 +69,7 @@ test("exports long reviewed content across pages without throwing", async () => 
       title: `产品项目 ${entryIndex + 1}`,
       organization: "示例公司",
       dates: "2025.01 - 2025.06",
-      bullets: Array.from({ length: 8 }, () => "完成用户调研、需求分析和跨团队协作，持续推动产品方案落地。"),
+      bullets: Array.from({ length: 8 }, (_, bulletIndex) => ({ title: `项目推进 ${bulletIndex + 1}`, text: "完成用户调研、需求分析和跨团队协作，持续推动产品方案落地。" })),
       sourceIds: ["p1-b1"],
     })),
   }));
@@ -95,4 +98,14 @@ test("keeps an allowed long contact on the first PDF page", async () => {
   const pages = await extractPageTexts(await exportPdf({ facts: acceptedFacts, resume }));
 
   assert.match(pages[0], /联/);
+});
+
+test("renders skills as one-line title-colon-body items without entry headings", async () => {
+  const exportPdf = await getExportPdf();
+  const skillResume = structuredClone(resume);
+  skillResume.sections = [{ heading: '技能', entries: [{ title: '', organization: '', dates: '', bullets: [{ title: '付费与活动玩法', text: '具备付费卡点设计、会员体系设计和活动复盘经验。' }] }] }];
+
+  const text = await extractText(await exportPdf({ facts, resume: skillResume }));
+
+  assert.match(text.replace(/\s/g, ''), /付费与活动玩法：具备付费卡点设计、会员体系设计和活动复盘经验。/);
 });

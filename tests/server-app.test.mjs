@@ -22,7 +22,7 @@ test("returns selected configuration without the provider key", async () => {
   );
 
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { provider: "qwen", model: "qwen-plus", configured: true });
+  assert.deepEqual(await response.json(), { provider: "qwen", model: "qwen-plus", configured: true, methodologyVersion: '0.1' });
 });
 
 test("returns a structured 503 response for an invalid provider", async () => {

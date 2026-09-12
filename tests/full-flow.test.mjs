@@ -38,18 +38,20 @@ async function postJson(baseUrl, path, body) {
 
 function fixtureResume(facts) {
   return {
+    methodologyVersion: '0.1',
     summary: "具备真实项目经历的产品助理候选人。",
     targetRole: "产品助理",
     sections: [{
       heading: "项目经历",
       entries: [{
-        title: "产品项目",
+        title: "项目经历",
         organization: "",
         dates: "",
-        bullets: [facts.sourceBlocks[0].text],
-        sourceIds: [facts.sourceBlocks[0].id],
+        bullets: [{ title: '项目需求梳理', text: '梳理项目目标与核心需求，形成可执行的产品项目材料。', sourceIds: [facts.sourceBlocks[0].id], ruleIds: ['F01', 'E02'] }],
       }],
     }],
+    omissions: [],
+    warnings: [],
   };
 }
 

@@ -34,6 +34,60 @@ function appendSourceBlocks(blocks, text, page, lineEnds = []) {
   }
 }
 
+function isSameVisualLine(left, right) {
+  // PDF coordinates use points. A small tolerance keeps characters rendered
+  // with fractional baselines together while preserving separate text rows.
+  return Math.abs(left.y - right.y) <= 2;
+}
+
+function joinVisualLine(entries) {
+  entries.sort((left, right) => left.x - right.x || left.index - right.index);
+  let text = "";
+  let previous;
+  for (const entry of entries) {
+    const { item, x } = entry;
+    const fontHeight = Math.max(Math.abs(item.height ?? 0), 1);
+    const gap = previous ? x - (previous.x + previous.item.width) : 0;
+    // Adjacent glyphs may be separate PDF items (especially Chinese). Inserting
+    // a space between every item invents word breaks. Preserve actual gaps,
+    // including the wider separators between company, role and date fields.
+    if (gap >= fontHeight) text = text.trimEnd() + "  ";
+    else if (gap > fontHeight * 0.15 && !/\s$/.test(text) && !/^\s/.test(item.str)) text += " ";
+    text += /^\s+$/.test(item.str) && item.width >= fontHeight ? "  " : item.str;
+    previous = entry;
+  }
+  return text.trim();
+}
+
+function pdfTextInVisualOrder(items) {
+  const positioned = items
+    .filter((item) => item.str)
+    .map((item, index) => ({
+      item,
+      index,
+      x: item.transform?.[4],
+      y: item.transform?.[5],
+    }));
+
+  if (positioned.some(({ x, y }) => !Number.isFinite(x) || !Number.isFinite(y))) {
+    return items.map((item) => `${item.str}${item.hasEOL ? "\n" : " "}`).join("");
+  }
+
+  positioned.sort((left, right) => right.y - left.y || left.x - right.x || left.index - right.index);
+  const lines = [];
+  for (const entry of positioned) {
+    // Sorted rows need only compare with the last row, avoiding a scan of all
+    // preceding lines for every text item on a dense page.
+    const line = lines.at(-1);
+    if (line && isSameVisualLine(line, entry)) line.entries.push(entry);
+    else lines.push({ y: entry.y, entries: [entry] });
+  }
+
+  return lines
+    .map((line) => joinVisualLine(line.entries))
+    .join("\n");
+}
+
 async function extractPdf(buffer) {
   let document;
   try {
@@ -46,19 +100,12 @@ async function extractPdf(buffer) {
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
       const textContent = await page.getTextContent();
-      // Preserve parser line boundaries. Flattening every item into one line
-      // loses the headings and date rows needed for reliable resume parsing.
-      const rawText = textContent.items.map((item) => `${item.str}${item.hasEOL ? "\n" : " "}`).join("");
+      // A PDF content stream may write text boxes out of their visual order.
+      // Restore rows from their page coordinates before segmenting headings and
+      // numbered responsibilities, so neighboring items do not trade content.
+      const rawText = pdfTextInVisualOrder(textContent.items);
       const text = rawText.trim();
-      // PDF line endings are metadata. Retain the established space-normalized
-      // text while using those positions to avoid splitting ordinary lines.
-      let offset = -(rawText.length - rawText.trimStart().length);
-      const lineEnds = [];
-      for (const item of textContent.items) {
-        offset += (item.str?.length ?? 0) + 1;
-        if (item.hasEOL) lineEnds.push(offset);
-      }
-      if (text) appendSourceBlocks(sourceBlocks, text, pageNumber, lineEnds);
+      if (text) appendSourceBlocks(sourceBlocks, text, pageNumber);
     }
 
     if (sourceBlocks.length === 0) {

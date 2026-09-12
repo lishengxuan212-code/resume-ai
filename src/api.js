@@ -24,7 +24,12 @@ export function createResumeApi(dependencies = {}) {
       body.append('resume', file);
       return json('/api/extract', { method: 'POST', body });
     },
-    optimizeResume: (facts, targetRole) => json('/api/optimize', post({ facts, targetRole })),
+    diagnoseResume: (facts, targetRole, jobDescription = '') => json('/api/diagnose', post({ facts, targetRole, jobDescription })),
+    optimizeResume: (facts, targetRole, options = {}) => {
+      const body = { facts, targetRole, jobDescription: options.jobDescription || '', answers: options.answers || [], skipQuestions: Boolean(options.skipQuestions) };
+      if (options.diagnosis) body.diagnosis = options.diagnosis;
+      return json('/api/optimize', post(body));
+    },
     async downloadResume(facts, resume) {
       const response = await request('/api/export', post({ facts, resume }));
       if (!response.ok) throw await responseError(response, 'PDF 生成失败，请重试。');
@@ -50,4 +55,4 @@ export function createResumeApi(dependencies = {}) {
   };
 }
 
-export const { getApiConfig, extractResume, optimizeResume, downloadResume } = createResumeApi();
+export const { getApiConfig, extractResume, diagnoseResume, optimizeResume, downloadResume } = createResumeApi();

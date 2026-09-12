@@ -26,10 +26,18 @@ test('config and optimization use local API routes and normalized JSON payload',
   assert.equal(calls[0].url, '/api/config');
   assert.equal(calls[1].url, '/api/optimize');
   assert.equal(calls[1].headers['Content-Type'], 'application/json');
-  assert.deepEqual(JSON.parse(calls[1].body), { facts: { name: '张三' }, targetRole: '产品经理' });
+  assert.deepEqual(JSON.parse(calls[1].body), { facts: { name: '张三' }, targetRole: '产品经理', jobDescription: '', answers: [], skipQuestions: false });
 });
 
-for (const method of ['getApiConfig', 'extractResume', 'optimizeResume', 'downloadResume']) {
+test('optimization carries the validated diagnosis into the generation request', async () => {
+  let body;
+  const diagnosis = { methodologyVersion: '0.1', findings: [], questions: [], canOptimizeDirectly: true };
+  const client = create({ fetch: async (url, init) => { body = JSON.parse(init.body); return Response.json({ resume: {} }); } });
+  await client.optimizeResume({ name: '张三' }, '产品经理', { diagnosis });
+  assert.deepEqual(body.diagnosis, diagnosis);
+});
+
+for (const method of ['getApiConfig', 'extractResume', 'diagnoseResume', 'optimizeResume', 'downloadResume']) {
   test(`${method} prioritizes server Chinese errors on non-2xx responses`, async () => {
     const client = create({ fetch: async () => Response.json({ error: { message: '服务暂时不可用，请重试。' } }, { status: 503 }) });
     await assert.rejects(() => client[method](new File(['x'], 'resume.pdf'), {}), /服务暂时不可用，请重试。/);

@@ -32,7 +32,7 @@ function writeText(document, value, options = {}) {
   document.text(text, textOptions);
 }
 
-function writeEntry(document, entry) {
+function writeEntry(document, entry, inlineBullets = false) {
   document.fontSize(13);
   writeText(document, entry.title, { paragraphGap: 2 });
 
@@ -42,8 +42,16 @@ function writeEntry(document, entry) {
 
   document.fontSize(10);
   for (const bullet of entry.bullets ?? []) {
-    const text = presentText(bullet);
-    if (text) writeText(document, `• ${text}`, { indent: 12, paragraphGap: 3 });
+    const text = presentText(typeof bullet === 'string' ? bullet : bullet?.text);
+    const title = presentText(typeof bullet === 'object' ? bullet?.title : '');
+    if (inlineBullets && title && text) {
+      writeText(document, `${title}：${text}`, { indent: 12, paragraphGap: 4 });
+    } else if (title) {
+      document.fontSize(10.5);
+      writeText(document, `• ${title}`, { indent: 12, paragraphGap: 1 });
+      document.fontSize(10);
+      writeText(document, text, { indent: 23, paragraphGap: 4 });
+    } else if (text) writeText(document, `• ${text}`, { indent: 12, paragraphGap: 3 });
   }
   document.moveDown(0.45);
 }
@@ -102,7 +110,7 @@ export function exportPdf({ facts, resume }) {
           document.fontSize(14);
           writeText(document, heading, { paragraphGap: 6 });
         }
-        for (const entry of section?.entries ?? []) writeEntry(document, entry ?? {});
+        for (const entry of section?.entries ?? []) writeEntry(document, entry ?? {}, heading === '技能');
       }
 
       document.end();

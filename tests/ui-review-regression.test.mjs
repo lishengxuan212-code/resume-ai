@@ -1,95 +1,198 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { mkdir } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-
-// Run against a local Vite server; override the module path for a bundled runtime.
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
-const baseUrl = process.env.RESUME_TEST_URL ?? 'http://localhost:5178';
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 test.after(() => browser.close());
-
-async function reviewPage(t, config = { configured: true, provider: 'openai', model: 'test-model' }) {
-  const page = await browser.newPage();
-  t.after(() => page.close());
-  page.setDefaultTimeout(5000);
-  await page.route('**/api/config', route => route.fulfill({ json: config }));
+const baseUrl = process.env.RESUME_TEST_URL ?? 'http://localhost:5173';
+const longWork = [
+  '1. 用户反馈整理：', '负责整理用户访谈记录，按问题类型归纳建议，保留原始反馈和处理记录。'.repeat(5),
+  '2. 活动执行与复盘：', '参与活动素材准备与上线检查，整理实际执行中的问题，并记录复盘结论。'.repeat(5),
+  '5. 会员体系搭建：', '整理会员权益说明，核对活动规则。',
+  '6. 游戏商城运营：', '维护商城活动资料，整理用户反馈。最后一句必须完整可见。',
+].join('\n');
+const skills = ['数据分析：Excel、SQL、数据看板', '产品工具：Axure、需求文档、用户反馈整理', '协作：问题跟进、会议记录、执行复盘'];
+const makeFacts = () => ({ name: '测试同学', contact: 'demo@example.com', education: [{school:'示例大学',major:'信息管理',degree:'本科',dates:'2020-2024',sourceIds:['p1-b1']}], experiences: [{title:'产品运营',organization:'示例公司',dates:'2024.01-至今',description:longWork,sourceIds:['p1-b1']}], skills, warnings:[], sourceBlocks:[{id:'p1-b1',page:1,text:'教育背景\n示例大学 信息管理 本科 2020-2024\n工作经历\n示例公司 产品运营 2024.01-至今\n'+longWork}] });
+async function review(t, viewport={width:1440,height:1000}) {
+  const page = await browser.newPage({viewport}); t.after(()=>page.close());
+  const errors=[]; page.on('pageerror',error=>errors.push(error.message));
+  await page.route('**/api/config',r=>r.fulfill({json:{configured:true,provider:'deepseek',model:'test-model'}}));
+  await page.route('**/api/extract',r=>r.fulfill({json:{facts:makeFacts()}}));
   await page.goto(baseUrl);
-  await page.getByRole('button', { name: '没有简历？在线填写' }).click();
-  await page.getByRole('textbox', { name: '姓名', exact: true }).fill('张三');
-  await page.getByRole('textbox', { name: '一段值得讲述的经历' }).fill('原始访谈经历');
-  await page.getByRole('button', { name: '核对填写内容' }).click();
-  await page.getByRole('textbox', { name: '姓名', exact: true }).fill('修改后的姓名');
-  await page.getByRole('textbox', { name: '目标岗位', exact: true }).fill('产品助理');
-  await page.getByRole('textbox', { name: '经历内容', exact: true }).fill('已核对的访谈经历');
-  await page.getByRole('textbox', { name: '原文 2', exact: true }).fill('已核对的访谈经历');
-  return page;
+  await page.getByLabel('选择简历文件',{exact:true}).setInputFiles({name:'示例简历.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-demo')});
+  await page.getByRole('heading',{name:'核对你的材料',exact:true}).waitFor();
+  return {page,errors};
 }
-
-for (const [provider, label] of [['openai', 'OpenAI'], ['deepseek', 'DeepSeek'], ['qwen', '通义千问']]) {
-  test(`review identifies ${label} and model before submission without exposing secrets`, async t => {
-    const page = await reviewPage(t, { configured: true, provider, model: 'test-model', apiKey: 'fake-key-must-not-render' });
-    assert.match(await page.locator('dialog .service-status').innerText(), new RegExp(label));
-    assert.match(await page.locator('dialog .service-status').innerText(), /test-model/);
-    assert.equal(await page.getByRole('button', { name: '确认事实并优化', exact: true }).isEnabled(), true);
-    assert.ok(!(await page.locator('body').innerText()).includes('fake-key-must-not-render'));
-  });
-}
-
-test('review names an unconfigured provider and prevents submission', async t => {
-  const page = await reviewPage(t, { configured: false, provider: 'qwen', model: null });
-  assert.match(await page.locator('dialog .service-status').innerText(), /通义千问.*尚未配置/);
-  assert.equal(await page.getByRole('button', { name: '确认事实并优化', exact: true }).isDisabled(), true);
+test('review is a wide page with compact contact, visible required markers and no source choices',async t=>{
+  const {page,errors}=await review(t);
+  assert.equal(await page.locator('dialog').count(),0);
+  assert.equal(await page.getByRole('checkbox').count(),0);
+  assert.ok((await page.locator('.review-main').boundingBox()).width>850);
+  const contact=page.getByRole('textbox',{name:/联系方式/});
+  assert.equal(await contact.evaluate(el=>el.tagName),'INPUT');
+  assert.ok((await contact.boundingBox()).height<60);
+  assert.equal(await page.getByRole('textbox',{name:/目标岗位/}).getAttribute('required'),'');
+  assert.equal(await page.locator('.target-role-field .required-mark').innerText(),'*');
+  assert.equal((await page.locator('#review-work .readable-body').innerText()).replace(/\s+/g,''), longWork.replace(/\s+/g,''));
+  assert.equal(await page.locator('#review-work .numbered-paragraph').count(),4);
+  assert.equal(await page.locator('#review-skills li').count(),3);
+  assert.ok(await page.locator('#review-sources .readable-body').innerText().then(text=>text.includes('最后一句必须完整可见')));
+  assert.deepEqual(errors,[]);
+  await mkdir('output/playwright',{recursive:true});
+  await page.screenshot({path:'output/playwright/review-desktop.png'});
+  await page.locator('#review-work').screenshot({path:'output/playwright/review-work.png'});
 });
-
-async function failedReplacement(page) {
-  await page.getByRole('button', { name: '关闭', exact: true }).click();
-  await page.route('**/api/extract', route => route.fulfill({ status: 503, json: { error: { message: '替换识别暂时失败，请重试。' } } }));
-  await page.getByLabel('选择简历文件', { exact: true }).setInputFiles({ name: 'replacement.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-test') });
-  await page.locator('dialog .error').filter({ hasText: '替换识别暂时失败' }).waitFor();
-  await page.getByRole('button', { name: '关闭', exact: true }).click();
-}
-
-test('failed replacement retains unsaved factual edits and the review entry point', async t => {
-  const page = await reviewPage(t);
-  await failedReplacement(page);
-  assert.equal(await page.getByRole('button', { name: '继续核对我的材料', exact: true }).count(), 1, 'failed replacement must retain the review entry point');
-  await page.getByRole('button', { name: '继续核对我的材料', exact: true }).click();
-  assert.equal(await page.getByRole('textbox', { name: '姓名', exact: true }).inputValue(), '修改后的姓名');
-  assert.equal(await page.getByRole('textbox', { name: '目标岗位', exact: true }).inputValue(), '产品助理');
-  assert.equal(await page.getByRole('textbox', { name: '经历内容', exact: true }).inputValue(), '已核对的访谈经历');
-  assert.equal(await page.getByRole('textbox', { name: '原文 2', exact: true }).inputValue(), '已核对的访谈经历');
-});
-
-test('failed replacement retains the already generated resume and download action', async t => {
-  const page = await reviewPage(t);
-  await page.route('**/api/optimize', route => route.fulfill({ json: { resume: { summary: '已生成的访谈简历', targetRole: '产品助理', provider: 'openai', model: 'test-model', sections: [{ heading: '经历', entries: [{ title: '访谈', organization: '', dates: '', bullets: ['已核对的访谈经历'], sourceIds: ['form-b3'] }] }] } } }));
-  await page.getByRole('button', { name: '确认事实并优化', exact: true }).click();
-  await page.getByRole('heading', { name: '你的优化简历', exact: true }).waitFor();
-  await failedReplacement(page);
-  assert.equal(await page.getByRole('button', { name: '查看优化结果', exact: true }).count(), 1, 'failed replacement must retain the result entry point');
-  await page.getByRole('button', { name: '查看优化结果', exact: true }).click();
-  assert.equal(await page.getByText('已生成的访谈简历', { exact: true }).count(), 1);
-  assert.equal(await page.getByRole('button', { name: '下载 PDF', exact: true }).isEnabled(), true);
-});
-
-test('an unused added source can be removed, while a cited source stays protected', async t => {
-  const page = await reviewPage(t);
-  await page.getByRole('button', { name: '补充来源原文', exact: true }).click();
-  assert.equal(await page.getByRole('button', { name: '删除原文 3', exact: true }).count(), 1, 'an accidentally added blank source needs a removal control');
-  await page.getByRole('button', { name: '删除原文 3', exact: true }).click();
-  assert.equal(await page.getByRole('textbox', { name: '原文 3', exact: true }).count(), 0);
-  await page.getByRole('button', { name: '保存事实修改', exact: true }).click();
-  await page.locator('dialog').getByText('事实修改已保存在当前页面。', { exact: true }).waitFor();
-  await page.getByRole('button', { name: '补充来源原文', exact: true }).click();
-  await page.getByRole('textbox', { name: '原文 3', exact: true }).fill('补充访谈证据');
-  await page.getByRole('checkbox', { name: '原文 3：补充访谈证据', exact: true }).check();
-  assert.equal(await page.getByRole('button', { name: '删除原文 3', exact: true }).isDisabled(), true);
-  await page.getByRole('checkbox', { name: '原文 3：补充访谈证据', exact: true }).uncheck();
-  await page.getByRole('button', { name: '删除原文 3', exact: true }).click();
+test('editing long content expands fully, records provenance, and survives generation failure',async t=>{
+  const {page,errors}=await review(t);
+  await page.getByRole('button',{name:'编辑工作内容 1',exact:true}).click();
+  const editor=page.getByRole('textbox',{name:'工作内容 1',exact:true});
+  const revised=longWork+'\n补充的真实行动：整理任务清单。';
+  await editor.fill(revised);
+  await page.waitForFunction(()=>{const el=document.querySelector('#review-work textarea');return el&&el.scrollHeight<=el.clientHeight+2;});
+  assert.ok((await editor.boundingBox()).height>300);
+  await page.getByRole('button',{name:'完成编辑工作内容 1',exact:true}).click();
+  await page.getByRole('textbox',{name:/目标岗位/}).fill('产品运营');
   let submitted;
-  await page.route('**/api/optimize', route => { submitted = route.request().postDataJSON(); return route.fulfill({ status: 503, json: { error: { message: '已验证提交' } } }); });
-  await page.getByRole('button', { name: '确认事实并优化', exact: true }).click();
-  await page.locator('dialog .error').filter({ hasText: '已验证提交' }).waitFor();
-  assert.deepEqual(submitted.facts.experiences[0].sourceIds, ['form-b3']);
-  assert.deepEqual(submitted.facts.sourceBlocks.map(block => block.id), ['form-b1', 'form-b3']);
+  await page.route('**/api/diagnose',r=>{submitted=r.request().postDataJSON();return r.fulfill({status:502,json:{error:{message:'测试：服务暂时不可用，材料已保留。'}}});});
+  await page.getByRole('button',{name:'检查材料并继续',exact:true}).click();
+  await page.getByRole('alert').filter({hasText:'测试：服务暂时不可用'}).waitFor();
+  assert.equal(submitted.facts.experiences[0].description,revised);
+  const id=submitted.facts.experiences[0].sourceIds[0];
+  assert.match(id,/^review-entry-/);
+  assert.ok(submitted.facts.sourceBlocks.find(b=>b.id===id).text.includes('补充的真实行动'));
+  assert.equal((await page.locator('#review-work .readable-body').innerText()).replace(/\s+/g,''),revised.replace(/\s+/g,''));
+  await page.getByRole('button',{name:'返回首页',exact:true}).click();
+  await page.getByRole('button',{name:'继续核对我的材料',exact:true}).click();
+  assert.equal((await page.locator('#review-work .readable-body').innerText()).replace(/\s+/g,''),revised.replace(/\s+/g,''));
+  assert.deepEqual(errors,[]);
+});
+test('new entries submit without a source picker and blank target prevents generation',async t=>{
+  const {page}=await review(t);
+  let calls=0,submitted;
+  await page.route('**/api/diagnose',r=>{calls++;submitted=r.request().postDataJSON();return r.fulfill({status:502,json:{error:{message:'已验证提交'}}});});
+  await page.getByRole('button',{name:'检查材料并继续',exact:true}).click();
+  assert.equal(calls,0);
+  await page.getByRole('button',{name:'添加工作经历',exact:true}).click();
+  await page.getByRole('textbox',{name:'公司或组织',exact:true}).nth(1).fill('补充公司');
+  await page.getByRole('button',{name:'编辑工作内容 2',exact:true}).click();
+  await page.getByRole('textbox',{name:'工作内容 2',exact:true}).fill('整理产品问题与测试记录。');
+  await page.getByRole('button',{name:'完成编辑工作内容 2',exact:true}).click();
+  await page.getByRole('textbox',{name:/目标岗位/}).fill('产品助理');
+  await page.getByRole('button',{name:'检查材料并继续',exact:true}).click();
+  await page.getByRole('alert').filter({hasText:'已验证提交'}).waitFor();
+  assert.equal(submitted.facts.experiences.length,2);
+  assert.match(submitted.facts.experiences[1].sourceIds[0],/^review-entry-/);
+});
+test('mobile review has one page scrollbar and no horizontal overflow',async t=>{
+  const {page,errors}=await review(t,{width:390,height:844});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth));
+  assert.ok(await page.locator('.readable-body').evaluateAll(els=>els.every(el=>el.scrollHeight<=el.clientHeight+1)));
+  await page.getByRole('button',{name:'编辑已具备的技能',exact:true}).click();
+  await page.getByRole('textbox',{name:'已具备的技能',exact:true}).fill(skills.join('\n'));
+  await page.waitForFunction(()=>{const el=document.querySelector('#review-skills textarea');return el&&el.scrollHeight<=el.clientHeight+2;});
+  assert.deepEqual(errors,[]);
+  await page.evaluate(()=>window.scrollTo(0,0));
+  await page.screenshot({path:'output/playwright/review-mobile.png'});
+});
+
+test('formatted content displays pasted HTML as text and failed replacement preserves edits',async t=>{
+  const {page,errors}=await review(t);
+  await page.getByRole('button',{name:'编辑工作内容 1',exact:true}).click();
+  const text='核对的经历\n<img src=x onerror="window.injected=true">';
+  await page.getByRole('textbox',{name:'工作内容 1',exact:true}).fill(text);
+  await page.getByRole('button',{name:'完成编辑工作内容 1',exact:true}).click();
+  assert.equal(await page.locator('#review-work img').count(),0);
+  assert.ok((await page.locator('#review-work .readable-body').innerText()).includes('<img src=x'));
+  await page.route('**/api/extract',r=>r.fulfill({status:503,json:{error:{message:'替换失败，保留原材料'}}}));
+  await page.getByLabel('选择简历文件',{exact:true}).setInputFiles({name:'replacement.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-demo')});
+  await page.getByRole('alert').filter({hasText:'替换失败'}).waitFor();
+  assert.ok((await page.locator('#review-work .readable-body').innerText()).includes('<img src=x'));
+  assert.deepEqual(errors,[]);
+});
+
+test('unconfigured service is explained and does not allow optimization',async t=>{
+  const {page}=await review(t);
+  await page.route('**/api/config',r=>r.fulfill({json:{configured:false,provider:'qwen',model:null}}));
+  await page.getByRole('button',{name:'返回首页',exact:true}).click();
+  await page.getByLabel('选择简历文件',{exact:true}).setInputFiles({name:'second.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-demo')});
+  await page.locator('.service-status').filter({hasText:'尚未配置'}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'检查材料并继续',exact:true}).isDisabled(),true);
+});
+
+test('centered loading story blocks duplicate actions and restores review on failure',async t=>{
+  const {page,errors}=await review(t,{width:390,height:844});
+  await page.getByRole('textbox',{name:/目标岗位/}).fill('产品运营');
+  let release;
+  const pending = new Promise(resolve=>{release=resolve;});
+  await page.route('**/api/diagnose',async route=>{await pending;await route.fulfill({status:502,json:{error:{message:'等待超时，材料已保留'}}});});
+  await page.getByRole('button',{name:'检查材料并继续',exact:true}).click();
+  const overlay = page.getByRole('dialog',{name:'正在梳理你的经历'});
+  await overlay.waitFor();
+  const box=await overlay.boundingBox();
+  assert.ok(Math.abs(box.x+box.width/2-195)<2);
+  assert.ok(Math.abs(box.y+box.height/2-422)<2);
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.keyboard.press('Escape');
+  assert.equal(await overlay.isVisible(),true);
+  await page.getByRole('button',{name:'暂停动画',exact:true}).click();
+  assert.equal(await page.locator('.quest-runner').evaluate(el=>getComputedStyle(el).animationPlayState),'paused');
+  assert.equal(await page.getByRole('button',{name:'继续动画',exact:true}).getAttribute('aria-pressed'),'true');
+  await page.waitForFunction(()=>Number(getComputedStyle(document.querySelector('.loading-encouragement')).opacity)>.99);
+  await mkdir('output/playwright',{recursive:true});
+  await page.screenshot({path:'output/playwright/loading-mobile.png'});
+  await page.setViewportSize({width:1440,height:1000});
+  await page.screenshot({path:'output/playwright/loading-desktop.png'});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  assert.equal(await page.locator('.quest-runner').evaluate(el=>getComputedStyle(el).animationName),'none');
+  release();
+  await page.getByRole('alert').filter({hasText:'等待超时'}).waitFor();
+  assert.equal(await page.locator('.loading-overlay').count(),0);
+  assert.equal(await page.evaluate(()=>document.body.style.overflow),'');
+  assert.equal(await page.getByRole('textbox',{name:/目标岗位/}).inputValue(),'产品运营');
+  assert.deepEqual(errors,[]);
+});
+
+test('diagnosis can be skipped while internal rule codes stay out of the user interface',async t=>{
+  const {page,errors}=await review(t);
+  await page.getByRole('textbox',{name:/目标岗位/}).fill('产品运营');
+  await page.route('**/api/diagnose',r=>r.fulfill({json:{diagnosis:{methodologyVersion:'0.1',findings:[{dimension:'能力证据',issue:'行动细节可以更清楚',evidenceSourceIds:['p1-b1'],suggestedAction:'按对象和交付物拆分',ruleIds:['E02']}],questions:[{id:'q1',question:'你最后交付了什么？',reason:'用于确认结果',suggestedRewrite:'归类用户反馈并跟进处理状态。',sourceIds:['p1-b1'],ruleIds:['Q01']}],canOptimizeDirectly:true,provider:'deepseek',model:'test-model'}}}));
+  await page.route('**/api/optimize',r=>r.fulfill({json:{facts:makeFacts(),resume:{methodologyVersion:'0.1',summary:'具备产品运营执行经验。',targetRole:'产品运营',sections:[{heading:'工作经历',entries:[{title:'产品运营',organization:'示例公司',dates:'2024.01-至今',bullets:[{title:'用户反馈闭环',text:'按问题类型整理用户反馈，记录处理进展与复盘结论。',sourceIds:['p1-b1'],ruleIds:['F01','E02','G01']}]}]},{heading:'技能清单',entries:[{title:'技能清单',organization:'',dates:'',bullets:[{title:'付费与活动玩法',text:'具备付费卡点设计、会员体系设计和活动复盘经验。',sourceIds:['p1-b1'],ruleIds:['F01','E03']}]}]}],omissions:[],warnings:['付费率提升数字口径待确认。'],provider:'deepseek',model:'test-model',quality:{checked:true,substantiveChange:true,sourceSimilarity:.43,exactCopyCount:0,totalBullets:2,reason:'rewritten'}}}}));
+  await page.getByRole('button',{name:'检查材料并继续',exact:true}).click();
+  await page.getByRole('heading',{name:'优化前，再确认几件重要的事',exact:true}).waitFor();
+  assert.equal(await page.getByText('归类用户反馈并跟进处理状态。',{exact:true}).count(),1);
+  await page.getByRole('button',{name:'采用建议表达',exact:true}).click();
+  assert.equal(await page.getByRole('textbox',{name:'问题 1 的回答',exact:true}).inputValue(),'归类用户反馈并跟进处理状态。');
+  await mkdir('output/playwright',{recursive:true});
+  await page.screenshot({path:'output/playwright/diagnosis-suggestion.png',fullPage:true});
+  assert.doesNotMatch(await page.locator('.diagnosis-page').innerText(),/\b(?:D|E|F|G|Q|T)\d{2}\b/);
+  await page.getByRole('button',{name:'跳过问题，按现有材料优化',exact:true}).click();
+  await page.getByRole('heading',{name:'你的优化简历',exact:true}).waitFor();
+  assert.equal(await page.locator('dialog').count(),0);
+  assert.ok((await page.locator('.result-main').boundingBox()).width>850);
+  assert.equal(await page.getByRole('heading',{name:'用户反馈闭环',exact:true}).count(),1);
+  assert.ok((await page.locator('.experience-item').first().innerText()).includes('按问题类型整理用户反馈'));
+  assert.equal(await page.locator('.experience-item').first().evaluate(el=>getComputedStyle(el).borderRadius),'0px');
+  assert.equal(await page.locator('.experience-item').first().evaluate(el=>getComputedStyle(el).backgroundColor),'rgba(0, 0, 0, 0)');
+  assert.doesNotMatch(await page.locator('.result-page').innerText(),/\b(?:D|E|F|G|Q|T)\d{2}\b/);
+  assert.equal(await page.getByRole('heading',{name:'技能',exact:true}).count(),1);
+  assert.equal(await page.getByText('技能清单',{exact:true}).count(),0);
+  assert.equal(await page.getByText(/经历 01/).count(),0);
+  assert.equal(await page.getByText('付费与活动玩法：具备付费卡点设计、会员体系设计和活动复盘经验。',{exact:true}).count(),1);
+  assert.equal(await page.locator('#result-section-1 .skill-line').count(),1);
+  assert.equal(await page.getByRole('heading',{name:'简历提醒',exact:true}).count(),1);
+  assert.ok((await page.locator('#result-notes').innerText()).includes('不会进入正式简历'));
+  await page.getByRole('button',{name:'编辑工作经历',exact:true}).click();
+  await page.getByRole('textbox',{name:'编辑经历标题 1-1-1',exact:true}).fill('用户问题闭环');
+  await page.getByRole('textbox',{name:'编辑经历内容 1-1-1',exact:true}).fill('归类用户反馈并跟进处理结果。');
+  await page.getByRole('textbox',{name:'编辑姓名',exact:true}).fill('修改后的姓名');
+  await page.getByRole('button',{name:'完成技能',exact:true}).click();
+  const exportedRequest = new Promise(resolve=>page.route('**/api/export',async route=>{resolve(route.request().postDataJSON());await route.fulfill({status:200,contentType:'application/pdf',body:'%PDF-test'});}));
+  await page.getByRole('button',{name:/下载 PDF/}).click();
+  const exported = await exportedRequest;
+  assert.equal(exported.resume.sections[0].entries[0].bullets[0].title,'用户问题闭环');
+  assert.equal(exported.resume.sections[0].entries[0].bullets[0].text,'归类用户反馈并跟进处理结果。');
+  assert.equal(exported.facts.name,'修改后的姓名');
+  await page.screenshot({path:'output/playwright/result-desktop.png',fullPage:true});
+  assert.deepEqual(errors,[]);
 });

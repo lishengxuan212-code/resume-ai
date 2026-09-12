@@ -5,7 +5,13 @@ import { buildFacts } from "../server/facts.js";
 import { extractDocument } from "../server/extract-document.js";
 import { validateOptimizeInput } from "../server/resume-validation.js";
 import { docxWithParagraphs } from "./helpers/docx.mjs";
+import { numberedResumePdf, expectedResponsibilities } from './helpers/positioned-pdf.mjs';
 import PDFDocument from "pdfkit";
+import { fileURLToPath } from "node:url";
+
+const chineseFont = fileURLToPath(new URL(
+  '../node_modules/@fontsource/noto-serif-sc/files/noto-serif-sc-chinese-simplified-400-normal.woff', import.meta.url,
+));
 
 async function pdfWithPages(texts) {
   const pdf = new PDFDocument({ autoFirstPage: false });
@@ -21,6 +27,25 @@ async function pdfWithPages(texts) {
       pdf.text(line, 10, 10 + index * 10, { lineBreak: false });
     }
   }
+  pdf.end();
+  return complete;
+}
+
+async function pdfWithOutOfOrderTextStream() {
+  const pdf = new PDFDocument({ autoFirstPage: false });
+  const chunks = [];
+  const complete = new Promise((resolve, reject) => {
+    pdf.on('data', chunk => chunks.push(chunk));
+    pdf.on('end', () => resolve(Buffer.concat(chunks)));
+    pdf.on('error', reject);
+  });
+  pdf.addPage().font(chineseFont).fontSize(12);
+  // PDF content streams can be written in an order different from their visual
+  // position. This mirrors adjacent numbered responsibilities being swapped.
+  pdf.text('5. 第五项标题', 40, 100, { lineBreak: false });
+  pdf.text('6. 第六项标题', 40, 220, { lineBreak: false });
+  pdf.text('第五项内容', 40, 125, { lineBreak: false });
+  pdf.text('第六项内容', 40, 245, { lineBreak: false });
   pdf.end();
   return complete;
 }
@@ -46,6 +71,25 @@ test('PDF preserves parser line endings for structured resume extraction', async
   assert.equal(facts.sourceBlocks[1].text.trim(), 'B'.repeat(6000));
   assert.match(facts.sourceBlocks.map(block => block.text).join(''), /^A{7000}\s+B{6000}$/);
   assert.doesNotThrow(() => validateOptimizeInput({ facts, targetRole: '产品助理' }));
+});
+
+test('PDF restores visual top-to-bottom order when its text stream is out of order', async () => {
+  const buffer = await pdfWithOutOfOrderTextStream();
+  const { facts } = await extractDocument({ originalname: 'positioned.pdf', buffer, size: buffer.length });
+  const text = facts.sourceBlocks.map(block => block.text).join('\n');
+  assert.deepEqual(text.split('\n'), ['5. 第五项标题', '第五项内容', '6. 第六项标题', '第六项内容']);
+});
+
+test('PDF keeps adjacent numbered responsibilities with their own bodies in reviewed work facts', async () => {
+  const buffer = await numberedResumePdf();
+  const { facts } = await extractDocument({ originalname: 'numbered.pdf', buffer, size: buffer.length });
+  assert.equal(facts.experiences.length, 1);
+  assert.deepEqual(facts.experiences[0], {
+    title: '产品运营', organization: '示例公司', dates: '2023.04-至今',
+    description: expectedResponsibilities, sourceIds: ['p1-b1'],
+  });
+  assert.match(facts.sourceBlocks[0].text, /负责会员体系。\n第五项的补充说明。/);
+  assert.doesNotThrow(() => validateOptimizeInput({ facts, targetRole: '产品运营' }));
 });
 
 const fixture = (name) => readFile(new URL(`./fixtures/${name}`, import.meta.url));
