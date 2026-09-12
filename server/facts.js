@@ -53,11 +53,13 @@ function extractWork(block) {
   const entries = [];
   for (const [start, end] of ranges) {
     const dateRows = [];
-    for (let index = start; index < end; index += 1) if (DATE_RANGE.test(blockLines[index])) dateRows.push(index);
+    for (let index = start; index < end; index += 1) {
+      if (DATE_RANGE.test(blockLines[index]) && !/^(?:注|备注|\d{1,2}[.、])/.test(blockLines[index])) dateRows.push(index);
+    }
     for (const [position, index] of dateRows.entries()) {
       if (/^(?:注|备注|\d{1,2}[.、])/.test(blockLines[index])) continue;
       const previous = position === 0 ? start : dateRows[position - 1] + 1;
-      const before = blockLines.slice(previous, index), after = blockLines.slice(index + 1, position + 1 < dateRows.length ? dateRows[position + 1] : end);
+      const before = blockLines.slice(previous, index), after = blockLines.slice(index + 1, position + 1 < dateRows.length ? dateRows[position + 1] : end).filter((line) => !/^\d{1,2}[.、]$/.test(line));
       const dateMatch = blockLines[index].match(DATE_RANGE);
       const inline = dateMatch ? blockLines[index].slice(0, dateMatch.index).trim() : "";
       const inlineParts = inline.split(/\s{2,}/).filter(Boolean);
