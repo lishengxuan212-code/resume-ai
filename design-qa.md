@@ -41,3 +41,17 @@ final result: blocked
 ## Comparison history
 
 No visual comparison iteration performed due to infrastructure blocker.
+
+## 2026-09-12 resume-processing browser verification
+
+The historical homepage QA above is retained. The following checks cover the current processing flow and are recorded separately from a real supplier generation claim.
+
+- File recognition: a real DOCX fixture was uploaded through the running local page and reached the editable fact-review dialog. Its extracted source text was visible for confirmation.
+- Unconfigured service: with no local provider key/model configured, the review dialog showed that the AI service was not configured and kept the optimize action unavailable.
+- Optimization failure recovery: using a local injected fake service that returned the existing 502 failure, the browser retained the reviewed facts and target role for retry instead of discarding them.
+- PDF download: using a local injected fake service to reach the result state, the browser action invoked the real fixed-template PDF endpoint and displayed its download confirmation. The API end-to-end regression also asserts the returned bytes begin with `%PDF-`; no real supplier-generated resume was required for either check.
+- Narrow screen: at a phone-width viewport, the initial homepage and the review dialog had no horizontal overflow.
+
+The initial OFFER homepage remained black with the static copy and controls plus the existing floating/breathing OFFER image. This browser pass does not claim a pixel-level comparison with `docs/selected-homepage.png`.
+
+Real OpenAI, DeepSeek, or Qwen success was not verified in this run because no user supplier key was configured. Any later successful call must be recorded separately with the selected provider and model, without recording the credential.

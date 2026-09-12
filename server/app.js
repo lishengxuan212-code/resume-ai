@@ -67,12 +67,17 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
     try {
       const input = validateOptimizeInput(request.body);
       if (configError) throw configError;
-      const provider = createProvider(config, fetchImpl);
+      if (services?.optimizeResume && !config?.configured) {
+        throw new AppError(503, "provider_unconfigured", "当前 AI 服务尚未配置。");
+      }
+      const provider = services?.optimizeResume ? null : createProvider(config, fetchImpl);
       let generated;
       try {
-        generated = services?.optimizeResume
-          ? await services.optimizeResume(input)
-          : await provider.generateResume(input);
+        if (services?.optimizeResume) {
+          generated = await services.optimizeResume(input);
+        } else {
+          generated = await provider.generateResume(input);
+        }
       } catch {
         throw providerFailed();
       }
