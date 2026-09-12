@@ -5,8 +5,14 @@ import { readConfig } from "../server/config.js";
 test("reads the selected OpenAI model from server-only environment variables", () => {
   assert.deepEqual(
     readConfig({ AI_PROVIDER: "openai", OPENAI_API_KEY: "key", OPENAI_MODEL: "model-x" }),
-    { provider: "openai", model: "model-x", apiKey: "key", configured: true, timeoutMs: 30000 },
+    { provider: "openai", model: "model-x", apiKey: "key", configured: true, timeoutMs: 30000, providers: [{ provider: "openai", model: "model-x", apiKey: "key", configured: true, timeoutMs: 30000 }] },
   );
+});
+
+test("uses configured providers in declared order for failover", () => {
+  const config = readConfig({ AI_PROVIDERS: "deepseek,qwen", DEEPSEEK_API_KEY: "first", DEEPSEEK_MODEL: "deepseek-chat", QWEN_API_KEY: "second", QWEN_MODEL: "qwen-plus" });
+  assert.equal(config.provider, "deepseek");
+  assert.deepEqual(config.providers.map((item) => item.provider), ["deepseek", "qwen"]);
 });
 
 test('AI timeout accepts only integer milliseconds within the server range', () => {

@@ -46,6 +46,7 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
         provider: config.provider,
         model: config.model ?? null,
         configured: config.configured,
+        ...(config.providers?.filter((item) => item.configured).length > 1 ? { fallbackProviders: config.providers.filter((item) => item.configured).map((item) => ({ provider: item.provider, model: item.model })) } : {}),
       });
     } catch (error) {
       next(error);
@@ -81,7 +82,7 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
       } catch {
         throw providerFailed();
       }
-      response.json({ resume: validateOptimizedResume(generated, input.facts, config.provider, config.model) });
+      response.json({ resume: validateOptimizedResume(generated, input.facts, services?.optimizeResume ? config.provider : generated.provider ?? config.provider, services?.optimizeResume ? config.model : generated.model ?? config.model) });
     } catch (error) {
       next(error);
     }

@@ -145,7 +145,7 @@ test("keeps raw blocks while only pre-filling explicit contact details", () => {
   assert.deepEqual(facts, {
     name: "张三",
     contact: "zhangsan@example.com 13800138000",
-    education: [],
+    education: [{ school: "示例大学", major: "", degree: "", dates: "", sourceIds: ["docx-b1"] }],
     experiences: [],
     skills: [],
     sourceBlocks,

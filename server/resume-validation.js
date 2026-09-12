@@ -64,7 +64,7 @@ export function validateOptimizeInput(value) {
     facts: {
       name: textField("name", 200), contact: textField("contact"),
       education: entries("education", ["school", "major", "degree", "dates"]),
-      experiences: entries("experiences", ["title", "organization", "dates", "description"]),
+      experiences: entries("experiences", ["type", "title", "organization", "dates", "description"]).map((entry) => ({ ...entry, type: entry.type === "project" ? "project" : "work" })),
       skills: textList("skills"), sourceBlocks, warnings: textList("warnings"),
     },
     targetRole: value.targetRole.trim(),

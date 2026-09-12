@@ -14,7 +14,7 @@ test('online experience retains its original text and cites form-b3', () => {
     { id: 'form-b2', text: '测试大学\n计算机', page: null },
     { id: 'form-b3', text: '负责用户访谈\n整理反馈', page: null },
   ]);
-  assert.deepEqual(facts.experiences, [{ title: '', organization: '', dates: '', description: '负责用户访谈\n整理反馈', sourceIds: ['form-b3'] }]);
+  assert.deepEqual(facts.experiences, [{ type: 'work', title: '', organization: '', dates: '', description: '负责用户访谈\n整理反馈', sourceIds: ['form-b3'] }]);
   assert.deepEqual(facts.education, [{ school: '测试大学', major: '计算机', degree: '', dates: '', sourceIds: ['form-b2'] }]);
   assert.equal(facts.targetRole, '产品助理');
   assert.deepEqual(facts.skills, []);
@@ -41,7 +41,7 @@ test('saving review trims edited fields while retaining imported source IDs and 
   assert.equal(result.name, '张三');
   assert.deepEqual(result.skills, ['访谈']);
   assert.deepEqual(result.sourceBlocks, [{ id: 'p2-b1', text: '更新原文', page: 2 }]);
-  assert.deepEqual(result.experiences[0], { title: '实习', organization: '', dates: '', description: '更新经历', sourceIds: ['p2-b1'] });
+  assert.deepEqual(result.experiences[0], { type: 'work', title: '实习', organization: '', dates: '', description: '更新经历', sourceIds: ['p2-b1'] });
 });
 
 test('review cannot submit empty sources or entries without valid citations', () => {

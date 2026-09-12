@@ -6,19 +6,22 @@ import { generateCompatibleChat } from "./compatible-chat.js";
 const PROVIDERS = new Set(["openai", "deepseek", "qwen"]);
 
 export function createProvider(config, fetchImpl = globalThis.fetch) {
-  if (!PROVIDERS.has(config?.provider)) throw new AppError(503, "provider_invalid", "Unsupported AI provider");
-  if (!config.configured || !config.apiKey || !config.model) throw new AppError(503, "provider_unconfigured", "当前 AI 服务尚未配置。");
-  const settings = { provider: config.provider, model: config.model, apiKey: config.apiKey, timeoutMs: config.timeoutMs };
+  const candidates = config?.providers ?? [config];
+  if (!Array.isArray(candidates) || candidates.some((candidate) => !PROVIDERS.has(candidate?.provider))) throw new AppError(503, "provider_invalid", "Unsupported AI provider");
+  const configured = candidates.filter((candidate) => candidate.configured && candidate.apiKey && candidate.model);
+  if (configured.length === 0) throw new AppError(503, "provider_unconfigured", "当前 AI 服务尚未配置。");
+  const generateOne = async (settings, input) => {
   const generate = settings.provider === "openai" ? generateOpenAI : generateCompatibleChat;
+    const result = await generate(settings, { facts: input.facts, targetRole: input.targetRole }, fetchImpl);
+    return validateOptimizedResume(result, input.facts, settings.provider, settings.model);
+  };
   return {
     async generateResume(input) {
-      try {
-        const result = await generate(settings, { facts: input.facts, targetRole: input.targetRole }, fetchImpl);
-        return validateOptimizedResume(result, input.facts, settings.provider, settings.model);
-      } catch {
-        // Never forward transport errors, provider bodies, JSON snippets or keys.
-        throw providerFailed();
+      for (const candidate of configured) {
+        const settings = { provider: candidate.provider, model: candidate.model, apiKey: candidate.apiKey, timeoutMs: candidate.timeoutMs };
+        try { return await generateOne(settings, input); } catch { /* try the next configured provider */ }
       }
+      throw providerFailed();
     },
   };
 }

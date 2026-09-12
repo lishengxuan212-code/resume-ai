@@ -7,17 +7,19 @@ const PROVIDERS = {
 };
 
 export function readConfig(env) {
-  const provider = env.AI_PROVIDER || "openai";
-  const variables = PROVIDERS[provider];
-
-  if (!variables) {
+  const requested = (env.AI_PROVIDERS ?? env.AI_PROVIDER ?? "openai").split(",").map((name) => name.trim()).filter(Boolean);
+  if (requested.length === 0 || requested.some((provider) => !Object.hasOwn(PROVIDERS, provider))) {
     throw new AppError(503, "provider_invalid", "Unsupported AI provider");
   }
-
-  const apiKey = env[variables.apiKey]?.trim();
-  const model = env[variables.model]?.trim();
   const rawTimeout = env.AI_TIMEOUT_MS?.trim() ?? "";
   const parsedTimeout = /^\d+$/.test(rawTimeout) ? Number(rawTimeout) : NaN;
   const timeoutMs = Number.isInteger(parsedTimeout) && parsedTimeout >= 1000 && parsedTimeout <= 120000 ? parsedTimeout : 30000;
-  return { provider, model, apiKey, configured: Boolean(apiKey && model), timeoutMs };
+  const providers = requested.map((provider) => {
+    const variables = PROVIDERS[provider];
+    const apiKey = env[variables.apiKey]?.trim();
+    const model = env[variables.model]?.trim();
+    return { provider, model, apiKey, configured: Boolean(apiKey && model), timeoutMs };
+  });
+  const active = providers.find((item) => item.configured) ?? providers[0];
+  return { ...active, configured: providers.some((item) => item.configured), providers };
 }
