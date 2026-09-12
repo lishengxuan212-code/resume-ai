@@ -6,7 +6,6 @@ const SCHOOL = /([\p{Script=Han}A-Za-z][\p{Script=Han}A-Za-z· ]{1,30}(?:大学|
 const DEGREE = /(博士|硕士(?:研究生)?|学士|本科|大专|专科|高中|MBA)/;
 const SKILL_HEADING = /(?:技能|专业技能|专业能力|证书|资格证|资质|语言能力|熟练|精通|掌握|熟悉)/i;
 const WORK_HEADING = /(?:工作经历|工作经验|任职经历|实习经历|职业经历)/i;
-const PROJECT_HEADING = /(?:项目经历|项目经验|项目实践|项目)/i;
 
 function clean(value) { return value.replace(/^[：:\s•·-]+|[：:\s；;，,。]+$/g, "").trim(); }
 function startDate(dates) { return Number((dates.match(/20\d{2}/)?.[0] ?? "0")); }
@@ -40,19 +39,18 @@ function extractExperiences(block) {
   return lines.flatMap((line, index) => {
     if (/(?:教育背景|教育经历|学历)/.test(line)) section = "education";
     if (WORK_HEADING.test(line)) section = "work";
-    if (PROJECT_HEADING.test(line)) section = "project";
     const dates = line.match(DATE_RANGE)?.[1];
     if (!dates) return [];
     if (section === "education") return [];
     const context = lines.slice(Math.max(0, index - 2), index + 1).join(" ");
-    const type = section || (/(?:项目|系统|平台|小程序|课题)/.test(context) ? "project" : "work");
-    return [{ type, title: clean(lines[index - 1] ?? ""), organization: "", dates, description: lines.slice(index + 1, index + 4).join("\n"), sourceIds: [block.id] }];
+    return [{ title: clean(lines[index - 1] ?? ""), organization: "", dates, description: lines.slice(index + 1, index + 4).join("\n"), sourceIds: [block.id] }];
   });
 }
 
 export function buildFacts(sourceBlocks) {
   const sourceText = sourceBlocks.map((block) => block.text).join("\n");
   const firstLine = sourceBlocks.flatMap((block) => block.text.split(/\r?\n/)).find((line) => line.trim())?.trim() ?? "";
+  const named = sourceText.match(/(?:姓名|名字)[：:\s]*([\p{Script=Han}]{2,6})/u)?.[1] ?? "";
   const contacts = [...new Set([
     ...(sourceText.match(EMAIL_PATTERN) ?? []),
     ...(sourceText.match(PHONE_PATTERN) ?? []),
@@ -62,7 +60,7 @@ export function buildFacts(sourceBlocks) {
   const experiences = sourceBlocks.flatMap(extractExperiences).sort((a, b) => startDate(b.dates) - startDate(a.dates));
   const skills = [...new Set(sourceBlocks.flatMap(extractSkills))];
   return {
-    name: NAME_PATTERN.test(firstLine) ? firstLine : "",
+    name: named || (NAME_PATTERN.test(firstLine) ? firstLine : ""),
     contact: contacts.join(" "),
     education,
     experiences,

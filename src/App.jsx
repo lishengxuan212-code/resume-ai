@@ -8,7 +8,7 @@ import { draftToFacts, factsToDraft, prepareReviewedFacts } from './resume-state
 
 const emptyDraft = { name: '', contact: '', school: '', major: '', role: '', experience: '' };
 const educationFields = [['school', '学校'], ['major', '专业'], ['degree', '学历'], ['dates', '就读时间']];
-const experienceFields = [['title', '职位或项目名称'], ['organization', '组织或公司'], ['dates', '时间'], ['description', '内容']];
+const experienceFields = [['title', '职位'], ['organization', '公司或组织'], ['dates', '工作时间'], ['description', '工作内容']];
 const providerNames = { openai: 'OpenAI', deepseek: 'DeepSeek', qwen: '通义千问' };
 
 function FactEntries({ title, entries, fields, sources, onChange }) {
@@ -170,10 +170,9 @@ export function App() {
             <label className="field">目标岗位<input value={targetRole} required maxLength={200} placeholder="例如：产品助理、前端开发" onChange={e => { setTargetRole(e.target.value); setNotice(''); }} /></label>
           </section>
           <FactEntries title="教育" fields={educationFields} entries={facts.education} sources={facts.sourceBlocks} onChange={education => editFacts({ ...facts, education })} />
-          <FactEntries title="工作经历" fields={experienceFields} entries={facts.experiences.filter(entry => entry.type !== 'project')} sources={facts.sourceBlocks} onChange={work => editFacts({ ...facts, experiences: [...work.map(entry => ({ ...entry, type: 'work' })), ...facts.experiences.filter(entry => entry.type === 'project')].sort((a, b) => (b.dates || '').localeCompare(a.dates || '')) })} />
-          <FactEntries title="项目经历" fields={experienceFields} entries={facts.experiences.filter(entry => entry.type === 'project')} sources={facts.sourceBlocks} onChange={projects => editFacts({ ...facts, experiences: [...facts.experiences.filter(entry => entry.type !== 'project'), ...projects.map(entry => ({ ...entry, type: 'project' }))].sort((a, b) => (b.dates || '').localeCompare(a.dates || '')) })} />
+          <FactEntries title="工作经历" fields={experienceFields} entries={facts.experiences} sources={facts.sourceBlocks} onChange={experiences => editFacts({ ...facts, experiences: [...experiences].sort((a, b) => (b.dates || '').localeCompare(a.dates || '')) })} />
           <section className="fact-section"><h3>技能</h3><label className="field">已具备的技能，每行一项<textarea value={facts.skills.join('\n')} maxLength={12000} rows={3} onChange={e => editFacts({ ...facts, skills: e.target.value.split('\n') })} /></label></section>
-          <section className="fact-section"><h3>来源原文</h3><p className="section-note">来源原文以工作与项目内容为主。修改文本会保留其关联；添加教育、工作或项目时，请勾选对应原文。</p>
+          <section className="fact-section"><h3>来源原文</h3><p className="section-note">来源原文以工作内容为主。修改文本会保留其关联；添加教育或工作时，请勾选对应原文。</p>
             {facts.sourceBlocks.map((block, index) => <div key={block.id}>
               <label className="field">原文 {index + 1}{block.page ? ` · 第 ${block.page} 页` : ''}<textarea value={block.text} rows={5} maxLength={12000} required onChange={e => editFacts({ ...facts, sourceBlocks: facts.sourceBlocks.map((item, i) => i === index ? { ...item, text: e.target.value } : item) })} /></label>
               {/^review-b\d+$/.test(block.id) && <>

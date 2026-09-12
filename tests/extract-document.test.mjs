@@ -152,3 +152,11 @@ test("keeps raw blocks while only pre-filling explicit contact details", () => {
     warnings: [],
   });
 });
+
+test("identifies a labelled name, major and date-ordered work experience without a project category", () => {
+  const facts = buildFacts([{ id: "docx-b1", page: null, text: "姓名：李四\n教育背景：测试大学 本科 2018.09-2022.06 专业：软件工程\n工作经历\n产品助理\n2024.03-至今\n负责用户访谈\n运营实习生\n2022.06-2023.12\n负责内容运营" }]);
+  assert.equal(facts.name, "李四");
+  assert.equal(facts.education[0].major, "软件工程");
+  assert.deepEqual(facts.experiences.map((entry) => entry.dates), ["2024.03-至今", "2022.06-2023.12"]);
+  assert.ok(facts.experiences.every((entry) => !Object.hasOwn(entry, "type")));
+});

@@ -11,7 +11,7 @@ export function draftToFacts(draft) {
   return {
     name, contact, targetRole,
     education: school || major ? [{ school, major, degree: '', dates: '', sourceIds: ['form-b2'] }] : [],
-    experiences: experience ? [{ type: 'work', title: '', organization: '', dates: '', description: experience, sourceIds: ['form-b3'] }] : [],
+    experiences: experience ? [{ title: '', organization: '', dates: '', description: experience, sourceIds: ['form-b3'] }] : [],
     skills: [], warnings: [],
     sourceBlocks: blocks.filter(([, text]) => text).map(([id, text]) => ({ id, text, page: null })),
   };
@@ -39,7 +39,7 @@ export function prepareReviewedFacts(facts) {
   return {
     name: trim(facts.name), contact: trim(facts.contact),
     education: entries(facts.education, ['school', 'major', 'degree', 'dates']),
-    experiences: entries(facts.experiences, ['type', 'title', 'organization', 'dates', 'description']).map((entry) => ({ ...entry, type: entry.type === 'project' ? 'project' : 'work' })),
+    experiences: entries(facts.experiences, ['title', 'organization', 'dates', 'description']),
     skills: facts.skills.map(trim).filter(Boolean), warnings: facts.warnings.map(trim).filter(Boolean), sourceBlocks,
   };
 }
