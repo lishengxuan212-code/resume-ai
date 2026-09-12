@@ -5,8 +5,14 @@ import { readConfig } from "../server/config.js";
 test("reads the selected OpenAI model from server-only environment variables", () => {
   assert.deepEqual(
     readConfig({ AI_PROVIDER: "openai", OPENAI_API_KEY: "key", OPENAI_MODEL: "model-x" }),
-    { provider: "openai", model: "model-x", apiKey: "key", configured: true },
+    { provider: "openai", model: "model-x", apiKey: "key", configured: true, timeoutMs: 30000 },
   );
+});
+
+test('AI timeout accepts only integer milliseconds within the server range', () => {
+  for (const [value, expected] of [['1000', 1000], ['120000', 120000], [' 2500 ', 2500], [undefined, 30000], ['', 30000], ['999', 30000], ['120001', 30000], ['1.5', 30000], ['2000ms', 30000], ['1e4', 30000], ['Infinity', 30000]]) {
+    assert.equal(readConfig({ AI_TIMEOUT_MS: value }).timeoutMs, expected, `AI_TIMEOUT_MS=${value}`);
+  }
 });
 
 test("marks an absent active-provider key as unconfigured", () => {

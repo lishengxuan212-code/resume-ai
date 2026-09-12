@@ -8,11 +8,11 @@ const baseUrl = process.env.RESUME_TEST_URL ?? 'http://localhost:5178';
 const browser = await chromium.launch({ channel: 'msedge', headless: true });
 test.after(() => browser.close());
 
-async function reviewPage(t) {
+async function reviewPage(t, config = { configured: true, provider: 'openai', model: 'test-model' }) {
   const page = await browser.newPage();
   t.after(() => page.close());
   page.setDefaultTimeout(5000);
-  await page.route('**/api/config', route => route.fulfill({ json: { configured: true, provider: 'openai', model: 'test-model' } }));
+  await page.route('**/api/config', route => route.fulfill({ json: config }));
   await page.goto(baseUrl);
   await page.getByRole('button', { name: '没有简历？在线填写' }).click();
   await page.getByRole('textbox', { name: '姓名', exact: true }).fill('张三');
@@ -24,6 +24,22 @@ async function reviewPage(t) {
   await page.getByRole('textbox', { name: '原文 2', exact: true }).fill('已核对的访谈经历');
   return page;
 }
+
+for (const [provider, label] of [['openai', 'OpenAI'], ['deepseek', 'DeepSeek'], ['qwen', '通义千问']]) {
+  test(`review identifies ${label} and model before submission without exposing secrets`, async t => {
+    const page = await reviewPage(t, { configured: true, provider, model: 'test-model', apiKey: 'fake-key-must-not-render' });
+    assert.match(await page.locator('dialog .service-status').innerText(), new RegExp(label));
+    assert.match(await page.locator('dialog .service-status').innerText(), /test-model/);
+    assert.equal(await page.getByRole('button', { name: '确认事实并优化', exact: true }).isEnabled(), true);
+    assert.ok(!(await page.locator('body').innerText()).includes('fake-key-must-not-render'));
+  });
+}
+
+test('review names an unconfigured provider and prevents submission', async t => {
+  const page = await reviewPage(t, { configured: false, provider: 'qwen', model: null });
+  assert.match(await page.locator('dialog .service-status').innerText(), /通义千问.*尚未配置/);
+  assert.equal(await page.getByRole('button', { name: '确认事实并优化', exact: true }).isDisabled(), true);
+});
 
 async function failedReplacement(page) {
   await page.getByRole('button', { name: '关闭', exact: true }).click();

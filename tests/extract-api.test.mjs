@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import http from "node:http";
 import test from "node:test";
 import { createApp } from "../server/app.js";
+import { docxWithParagraphs } from "./helpers/docx.mjs";
 
 async function withApp(run) {
   const server = http.createServer(createApp({ config: { provider: "openai", model: null, configured: false } }));
@@ -19,6 +20,16 @@ function formWithResume(buffer, filename) {
   form.append("resume", new Blob([buffer]), filename);
   return form;
 }
+
+test('too-long DOCX returns actionable safe document_too_long JSON', async () => {
+  const buffer = await docxWithParagraphs(['私密'.repeat(180001)]);
+  const response = await withApp(url => fetch(`${url}/api/extract`, { method: 'POST', body: formWithResume(buffer, 'long.docx') }));
+  assert.equal(response.status, 400);
+  const body = await response.json();
+  assert.equal(body.error.code, 'document_too_long');
+  assert.match(body.error.message, /过长.*精简/);
+  assert.ok(!JSON.stringify(body).includes('私密'));
+});
 
 test("returns facts from a multipart PDF upload", async () => {
   const pdf = await readFile(new URL("./fixtures/resume.pdf", import.meta.url));

@@ -18,6 +18,41 @@ for (const [provider, endpoint] of [
   ["deepseek", "https://api.deepseek.com/chat/completions"],
   ["qwen", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"],
 ]) {
+  for (const stage of ['fetch', 'json']) {
+    test(`${provider} aborts stalled ${stage} and returns a safe failure promptly`, async () => {
+      let signal;
+      const never = new Promise(() => {});
+      const adapter = createProvider({ ...config(provider), timeoutMs: 20 }, async (url, options) => {
+        signal = options.signal;
+        return stage === 'fetch' ? never : { ok: true, json: () => never };
+      });
+      let guard;
+      try {
+        await assert.rejects(Promise.race([
+          adapter.generateResume(input),
+          new Promise((resolve, reject) => { guard = setTimeout(() => reject(new Error('provider did not honor deadline')), 500); }),
+        ]), safeFailure);
+        assert.equal(signal?.aborted, true, 'upstream transport must receive abort');
+      } finally { clearTimeout(guard); }
+    });
+  }
+  test(`${provider} clears deadline after success and response-body errors`, async () => {
+    for (const succeeds of [true, false]) {
+      let signal;
+      const adapter = createProvider({ ...config(provider), timeoutMs: 20 }, async (url, options) => {
+        signal = options.signal;
+        return { ok: true, json: async () => {
+          if (!succeeds) throw new Error(key);
+          return (provider === 'openai' ? openaiOutput : chatOutput)(JSON.stringify(resume));
+        } };
+      });
+      if (succeeds) assert.equal((await adapter.generateResume(input)).summary, resume.summary);
+      else await assert.rejects(adapter.generateResume(input), safeFailure);
+      assert.ok(signal instanceof AbortSignal);
+      await new Promise(resolve => setTimeout(resolve, 40));
+      assert.equal(signal.aborted, false, 'completed calls must not later abort');
+    }
+  });
   test(`${provider} isolates credentials and uses its server-selected endpoint and format`, async () => {
     const captured = [];
     const adapter = createProvider(config(provider), async (url, options) => {

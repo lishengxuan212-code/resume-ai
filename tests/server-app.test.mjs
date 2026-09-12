@@ -18,7 +18,7 @@ async function request(app) {
 
 test("returns selected configuration without the provider key", async () => {
   const response = await request(
-    createApp({ config: { provider: "qwen", model: "qwen-plus", apiKey: "secret", configured: true } }),
+    createApp({ config: { provider: "qwen", model: "qwen-plus", apiKey: "secret", configured: true, timeoutMs: 2345 } }),
   );
 
   assert.equal(response.status, 200);

@@ -8,7 +8,7 @@ const PROVIDERS = new Set(["openai", "deepseek", "qwen"]);
 export function createProvider(config, fetchImpl = globalThis.fetch) {
   if (!PROVIDERS.has(config?.provider)) throw new AppError(503, "provider_invalid", "Unsupported AI provider");
   if (!config.configured || !config.apiKey || !config.model) throw new AppError(503, "provider_unconfigured", "当前 AI 服务尚未配置。");
-  const settings = { provider: config.provider, model: config.model, apiKey: config.apiKey };
+  const settings = { provider: config.provider, model: config.model, apiKey: config.apiKey, timeoutMs: config.timeoutMs };
   const generate = settings.provider === "openai" ? generateOpenAI : generateCompatibleChat;
   return {
     async generateResume(input) {

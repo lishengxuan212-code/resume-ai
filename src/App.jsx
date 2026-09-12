@@ -9,6 +9,7 @@ import { draftToFacts, factsToDraft, prepareReviewedFacts } from './resume-state
 const emptyDraft = { name: '', contact: '', school: '', major: '', role: '', experience: '' };
 const educationFields = [['school', '学校'], ['major', '专业'], ['degree', '学历'], ['dates', '就读时间']];
 const experienceFields = [['title', '职位或项目名称'], ['organization', '组织或公司'], ['dates', '经历时间'], ['description', '经历内容']];
+const providerNames = { openai: 'OpenAI', deepseek: 'DeepSeek', qwen: '通义千问' };
 
 function FactEntries({ title, entries, fields, sources, onChange }) {
   const update = (index, key, value) => onChange(entries.map((entry, i) => i === index ? { ...entry, [key]: value } : entry));
@@ -184,7 +185,10 @@ export function App() {
           {facts.warnings.length > 0 && <ul className="section-note">{facts.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
           <button className="button secondary full" type="button" onClick={saveFacts}>保存事实修改</button>
         </fieldset>
-        <div className="service-status" aria-live="polite" aria-atomic="true">{configLoading ? '正在检查 AI 服务' : configError || (config?.configured === false ? '当前 AI 服务尚未配置' : config?.configured ? 'AI 服务已就绪，确认事实后即可开始优化。' : '尚未确认 AI 服务状态。')}</div>
+        <div className="service-status" aria-live="polite" aria-atomic="true">
+          {!configLoading && config && <span>AI 服务：{providerNames[config.provider] || '未知服务'}{config.model ? ` · 模型：${config.model}` : ''}。 </span>}
+          {configLoading ? '正在检查 AI 服务' : configError || (config?.configured === false ? '当前 AI 服务尚未配置' : config?.configured ? 'AI 服务已就绪，确认事实后即可开始优化。' : '尚未确认 AI 服务状态。')}
+        </div>
         {!config?.configured && <button className="text-button" type="button" disabled={busy || configLoading} onClick={() => void readConfig()}>重新检查服务</button>}
         <p className="preview-note">刷新页面将清空当前材料与结果。扫描型 PDF 暂不支持。开始优化会将确认后的事实提交给 AI 服务。</p>
         <div className="modal-actions"><button className="button secondary" type="button" disabled={busy} onClick={chooseFile}>重新选择</button><button className="button primary" type="submit" disabled={busy || configLoading || !config?.configured}>{status === 'optimizing' ? '正在优化简历' : '确认事实并优化'}</button></div>

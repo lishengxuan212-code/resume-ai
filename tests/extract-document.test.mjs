@@ -3,8 +3,82 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { buildFacts } from "../server/facts.js";
 import { extractDocument } from "../server/extract-document.js";
+import { validateOptimizeInput } from "../server/resume-validation.js";
+import { docxWithParagraphs } from "./helpers/docx.mjs";
+import PDFDocument from "pdfkit";
+
+async function pdfWithPages(texts) {
+  const pdf = new PDFDocument({ autoFirstPage: false });
+  const chunks = [];
+  const complete = new Promise((resolve, reject) => {
+    pdf.on('data', chunk => chunks.push(chunk));
+    pdf.on('end', () => resolve(Buffer.concat(chunks)));
+    pdf.on('error', reject);
+  });
+  for (const text of texts) {
+    pdf.addPage().fontSize(0.01);
+    for (const [index, line] of (Array.isArray(text) ? text : [text]).entries()) {
+      pdf.text(line, 10, 10 + index * 10, { lineBreak: false });
+    }
+  }
+  pdf.end();
+  return complete;
+}
+
+test('long real PDF pages split into bounded sources with page-local stable IDs', async () => {
+  const buffer = await pdfWithPages(['A'.repeat(13000), 'Second page']);
+  const { facts } = await extractDocument({ originalname: 'long.pdf', buffer, size: buffer.length });
+  assert.deepEqual(facts.sourceBlocks.map(block => [block.id, block.page]), [['p1-b1', 1], ['p1-b2', 1], ['p2-b1', 2]]);
+  assert.equal(facts.sourceBlocks.filter(block => block.page === 1).map(block => block.text).join(''), 'A'.repeat(13000));
+  assert.doesNotThrow(() => validateOptimizeInput({ facts, targetRole: '产品助理' }));
+});
+
+test('PDF enforces source count across pages, not separately per page', async () => {
+  const buffer = await pdfWithPages(Array.from({ length: 8 }, () => 'A'.repeat(36001)));
+  await assert.rejects(extractDocument({ originalname: 'long.pdf', buffer, size: buffer.length }),
+    error => error.status === 400 && error.code === 'document_too_long');
+});
+
+test('PDF prefers parser line endings while retaining existing space normalization', async () => {
+  const buffer = await pdfWithPages([['A'.repeat(7000), 'B'.repeat(6000)]]);
+  const { facts } = await extractDocument({ originalname: 'lines.pdf', buffer, size: buffer.length });
+  assert.equal(facts.sourceBlocks[0].text.trim(), 'A'.repeat(7000));
+  assert.equal(facts.sourceBlocks[1].text.trim(), 'B'.repeat(6000));
+  assert.match(facts.sourceBlocks.map(block => block.text).join(''), /^A{7000} +B{6000}$/);
+  assert.doesNotThrow(() => validateOptimizeInput({ facts, targetRole: '产品助理' }));
+});
 
 const fixture = (name) => readFile(new URL(`./fixtures/${name}`, import.meta.url));
+
+for (const [label, paragraphs] of [
+  ['paragraph boundaries', ['甲'.repeat(7000), '乙'.repeat(6000), '结尾']],
+  ['a single overlong paragraph', ['甲'.repeat(24001)]],
+  ['a paragraph exactly at the limit', ['甲'.repeat(12000), '乙']],
+]) {
+  test(`long DOCX preserves text and validates for optimization: ${label}`, async () => {
+    const buffer = await docxWithParagraphs(paragraphs);
+    const { facts } = await extractDocument({ originalname: 'long.docx', buffer, size: buffer.length });
+    assert.ok(facts.sourceBlocks.length > 1, 'long documents must be split before review');
+    assert.ok(facts.sourceBlocks.every(block => block.text.length <= 12000 && block.text.trim()));
+    assert.equal(facts.sourceBlocks.map(block => block.text).join(''), paragraphs.join('\n\n'));
+    assert.deepEqual(facts.sourceBlocks.map(block => [block.id, block.page]), facts.sourceBlocks.map((_, index) => [`docx-b${index + 1}`, null]));
+    if (label === 'paragraph boundaries') assert.equal(facts.sourceBlocks[0].text, paragraphs[0] + '\n\n');
+    assert.doesNotThrow(() => validateOptimizeInput({ facts, targetRole: '产品助理' }));
+  });
+}
+
+test('DOCX requiring 31 source chunks is rejected at extraction', async () => {
+  const buffer = await docxWithParagraphs(['字'.repeat(360001)]);
+  await assert.rejects(extractDocument({ originalname: 'too-long.docx', buffer, size: buffer.length }),
+    error => error.status === 400 && error.code === 'document_too_long' && /过长.*精简/.test(error.message));
+});
+
+test('DOCX using exactly 30 full chunks is accepted by optimization validation', async () => {
+  const buffer = await docxWithParagraphs(['字'.repeat(360000)]);
+  const { facts } = await extractDocument({ originalname: 'limit.docx', buffer, size: buffer.length });
+  assert.equal(facts.sourceBlocks.length, 30);
+  assert.doesNotThrow(() => validateOptimizeInput({ facts, targetRole: '产品助理' }));
+});
 
 test("extracts a real text PDF into a page-numbered source block", async () => {
   const buffer = await fixture("resume.pdf");

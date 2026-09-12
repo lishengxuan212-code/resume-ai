@@ -9,6 +9,15 @@ const facts = { name: "张三", contact: "", education: [], experiences: [], ski
 const resume = { summary: "有用户访谈经验", targetRole: "产品助理", sections: [{ heading: "经历", entries: [{ title: "产品实习", organization: "", dates: "", bullets: ["负责用户访谈"], sourceIds: ["p1-b1"] }] }] };
 const providerError = { error: { code: "provider_failed", message: "AI 服务暂时无法生成简历，请稍后重试。" } };
 
+test('a provider deadline returns recoverable 502 JSON', async () => {
+  const result = await post({ facts, targetRole: '产品助理' }, {
+    config: { ...config, timeoutMs: 20 },
+    fetchImpl: async () => ({ ok: true, json: () => new Promise(() => {}) }),
+  });
+  assert.equal(result.status, 502);
+  assert.deepEqual(JSON.parse(result.text), providerError);
+});
+
 async function post(body, options = {}, raw = false) {
   const server = http.createServer(createApp({ config, ...options }));
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));

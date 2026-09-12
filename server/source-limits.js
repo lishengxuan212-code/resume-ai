@@ -1,0 +1,2 @@
+export const MAX_SOURCE_BLOCKS = 30;
+export const MAX_SOURCE_BLOCK_TEXT_LENGTH = 12000;

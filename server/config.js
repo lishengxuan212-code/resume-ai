@@ -16,5 +16,8 @@ export function readConfig(env) {
 
   const apiKey = env[variables.apiKey]?.trim();
   const model = env[variables.model]?.trim();
-  return { provider, model, apiKey, configured: Boolean(apiKey && model) };
+  const rawTimeout = env.AI_TIMEOUT_MS?.trim() ?? "";
+  const parsedTimeout = /^\d+$/.test(rawTimeout) ? Number(rawTimeout) : NaN;
+  const timeoutMs = Number.isInteger(parsedTimeout) && parsedTimeout >= 1000 && parsedTimeout <= 120000 ? parsedTimeout : 30000;
+  return { provider, model, apiKey, configured: Boolean(apiKey && model), timeoutMs };
 }
