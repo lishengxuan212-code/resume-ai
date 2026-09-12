@@ -1,13 +1,13 @@
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const PHONE_PATTERN = /(?<!\d)1[3-9]\d{9}(?!\d)/g;
 const NAME_PATTERN = /^[\p{Script=Han}]{2,6}$/u;
-const DATE_RANGE = /(20\d{2}(?:[.\/-]\d{1,2})?\s*(?:至|到|[-—~～])\s*(?:20\d{2}(?:[.\/-]\d{1,2})?|至今|现在))/;
+const DATE_RANGE = /(20\d{2}(?:[.\/-]\d{1,2})?\s*(?:至|到|[-—~～]+)\s*(?:20\d{2}(?:[.\/-]\d{1,2})?|至今|现在))/;
 const SCHOOL = /([\p{Script=Han}A-Za-z][\p{Script=Han}A-Za-z· ]{1,30}(?:大学|学院|学校|University|College))/u;
 const DEGREE = /(博士|硕士(?:研究生)?|学士|本科|大专|专科|高中|MBA)/;
 const SKILL_HEADING = /(?:技能|专业技能|专业能力|证书|资格证|资质|语言能力|熟练|精通|掌握|熟悉)/i;
-const WORK_HEADING = /^(?:工作经历|工作经验|任职经历|实习经历|职业经历|社会实践)(?:[：:]|\s|$)/i;
+const WORK_HEADING = /^(?:工作(?:\/|和)?实习经历|工作经历|工作经验|任职经历|实习经历|职业经历|社会实践)(?:[：:]|\s|$)/i;
 const EDUCATION_HEADING = /^(?:教育背景|教育经历|学历)(?:[：:]|\s|$)/i;
-const SECTION_HEADING = /^(?:教育背景|教育经历|学历|工作经历|工作经验|任职经历|实习经历|职业经历|社会实践|项目经历|项目经验|专业技能|技能|证书|资格证|自我评价|个人评价|兴趣爱好)(?:[：:]|\s|$)/i;
+const SECTION_HEADING = /^(?:教育背景|教育经历|学历|工作(?:\/|和)?实习经历|工作经历|工作经验|任职经历|实习经历|职业经历|社会实践|项目经历|项目经验|专业技能|技能|证书|资格证|自我评价|个人评价|兴趣爱好)(?:[：:]|\s|$)/i;
 
 function clean(value) { return value.replace(/^[：:\s•·-]+|[：:\s；;，,。]+$/g, "").trim(); }
 function lines(block) { return block.text.split(/\r?\n/).map(clean).filter(Boolean); }
@@ -34,13 +34,16 @@ function extractSkills(block) {
 
 function extractEducation(block) {
   const blockLines = lines(block), text = blockLines.join(" ");
-  const school = text.match(SCHOOL)?.[1]?.trim() ?? "", degree = text.match(DEGREE)?.[1] ?? "", dates = text.match(DATE_RANGE)?.[1] ?? "";
+  const schoolLine = blockLines.find((line) => SCHOOL.test(line)) ?? "";
+  const schoolMatch = schoolLine.match(/[\p{Script=Han}A-Za-z]{2,20}(?:大学|学院|学校)/u);
+  const school = schoolMatch?.[0] ?? "", degree = text.match(DEGREE)?.[1] ?? "", dates = text.match(DATE_RANGE)?.[1] ?? "";
   if (!school && !degree) return [];
   const labelledMajor = text.match(/(?:专业|主修)[：:\s]*([^，,；;。\n]{2,30}?)(?=\s*(?:专业技能|技能|证书|工作经历|项目经历)|$)/)?.[1]?.trim();
   const educationStart = blockLines.findIndex((line) => EDUCATION_HEADING.test(line));
   const end = educationStart < 0 ? blockLines.length : (() => { const index = blockLines.findIndex((line, i) => i > educationStart && SECTION_HEADING.test(line)); return index < 0 ? blockLines.length : index; })();
   const inferredMajor = blockLines.slice(Math.max(0, educationStart), end).find((line) => /(?:专业|工程|科学|管理|设计|语言|经济|医学|法学|文学|教育学)$/.test(line) && !SCHOOL.test(line));
-  return [{ school, major: labelledMajor || inferredMajor || "", degree, dates, sourceIds: [block.id] }];
+  const inlineMajor = schoolMatch ? schoolLine.slice((schoolMatch.index ?? 0) + schoolMatch[0].length).replace(/^[—\-\s]+/, "").split(DEGREE)[0].trim() : "";
+  return [{ school, major: labelledMajor || inlineMajor || inferredMajor || "", degree, dates, sourceIds: [block.id] }];
 }
 
 function extractWork(block) {
@@ -52,9 +55,14 @@ function extractWork(block) {
     const dateRows = [];
     for (let index = start; index < end; index += 1) if (DATE_RANGE.test(blockLines[index])) dateRows.push(index);
     for (const [position, index] of dateRows.entries()) {
+      if (/^(?:注|备注|\d{1,2}[.、])/.test(blockLines[index])) continue;
       const previous = position === 0 ? start : dateRows[position - 1] + 1;
       const before = blockLines.slice(previous, index), after = blockLines.slice(index + 1, position + 1 < dateRows.length ? dateRows[position + 1] : end);
-      const title = before.at(-1) ?? "", organization = before.length > 1 && /(?:公司|集团|银行|事务所|工作室|中心|有限公司)/.test(before.at(-2)) ? before.at(-2) : "";
+      const dateMatch = blockLines[index].match(DATE_RANGE);
+      const inline = dateMatch ? blockLines[index].slice(0, dateMatch.index).trim() : "";
+      const inlineParts = inline.split(/\s{2,}/).filter(Boolean);
+      const title = inlineParts.at(-1) || before.at(-1) || "";
+      const organization = inlineParts.length > 1 ? inlineParts.slice(0, -1).join(" ") : before.length > 1 && /(?:公司|集团|银行|事务所|工作室|中心|有限公司)/.test(before.at(-2)) ? before.at(-2) : "";
       entries.push({ title, organization, dates: blockLines[index].match(DATE_RANGE)?.[1] ?? "", description: after.join("\n"), sourceIds: [block.id] });
     }
   }

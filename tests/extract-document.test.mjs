@@ -160,3 +160,10 @@ test("identifies a labelled name, major and date-ordered work experience without
   assert.deepEqual(facts.experiences.map((entry) => entry.dates), ["2024.03-至今", "2022.06-2023.12"]);
   assert.ok(facts.experiences.every((entry) => !Object.hasOwn(entry, "type")));
 });
+
+test("parses a common Chinese PDF row with school, major, company, role and a double-dash date", () => {
+  const facts = buildFacts([{ id: "p1-b1", page: 1, text: "姓名：王小明\n期望城市：杭州\n教育背景\n成都信息工程大学 — 光电信息科学与工程 本科 2020-2024\n工作/实习经历\n迅游科技公司   产品运营   2023.04——至今\n1. 商业化活动全流程落地\n注：2023.04—2024.06 为产品运营实习生" }]);
+  assert.equal(facts.name, "王小明");
+  assert.deepEqual(facts.education[0], { school: "成都信息工程大学", major: "光电信息科学与工程", degree: "本科", dates: "2020-2024", sourceIds: ["p1-b1"] });
+  assert.deepEqual(facts.experiences, [{ title: "产品运营", organization: "迅游科技公司", dates: "2023.04——至今", description: "1. 商业化活动全流程落地", sourceIds: ["p1-b1"] }]);
+});
