@@ -5,6 +5,7 @@ const DATE_RANGE = /(20\d{2}(?:[.\/-]\d{1,2})?\s*(?:至|到|[-—~～]+)\s*(?:20
 const SCHOOL = /([\p{Script=Han}A-Za-z][\p{Script=Han}A-Za-z· ]{1,30}(?:大学|学院|学校|University|College))/u;
 const DEGREE = /(博士|硕士(?:研究生)?|学士|本科|大专|专科|高中|MBA)/;
 const SKILL_HEADING = /(?:技能|专业技能|专业能力|证书|资格证|资质|语言能力|熟练|精通|掌握|熟悉)/i;
+const SKILL_SECTION_HEADING = /^(?:技能\s*[／/]?\s*(?:证书及其他)?|专业技能|专业能力|技能|证书|资格证|语言能力)(?:[：:]|\s|$)/i;
 const WORK_HEADING = /^(?:工作(?:\/|和)?实习经历|工作经历|工作经验|任职经历|实习经历|职业经历|社会实践)(?:[：:]|\s|$)/i;
 const EDUCATION_HEADING = /^(?:教育背景|教育经历|学历)(?:[：:]|\s|$)/i;
 const SECTION_HEADING = /^(?:教育背景|教育经历|学历|工作(?:\/|和)?实习经历|工作经历|工作经验|任职经历|实习经历|职业经历|社会实践|项目经历|项目经验|专业技能|技能|证书|资格证|自我评价|个人评价|兴趣爱好)(?:[：:]|\s|$)/i;
@@ -22,6 +23,15 @@ function extractName(sourceBlocks) {
 
 function extractSkills(block) {
   const blockLines = lines(block), result = [];
+  const normalizeSkill = (line) => line.replace(/^[●•·\-]\s*/, "").replace(/\s+/g, " ").replace(/(?<=\p{Script=Han})\s+(?=\p{Script=Han})/gu, "").replace(/\s*([：:、，,／/])\s*/g, "$1").trim();
+  const headingIndex = blockLines.findIndex((line) => SKILL_SECTION_HEADING.test(line));
+  if (headingIndex >= 0) {
+    const end = blockLines.findIndex((line, index) => index > headingIndex && SECTION_HEADING.test(line));
+    for (const line of blockLines.slice(headingIndex + 1, end < 0 ? undefined : end)) {
+      if (/^[●•·\-]/.test(line)) result.push(normalizeSkill(line));
+    }
+    if (result.length) return result;
+  }
   for (const [index, line] of blockLines.entries()) {
     const headed = line.match(/^(?:专业)?(?:技能|证书|资格证|语言能力)[：:]?\s*(.*)$/i);
     const candidate = headed?.[1] || (SKILL_HEADING.test(line) ? line.replace(/^(?:熟练|精通|掌握|熟悉)[：:]?\s*/i, "") : "");

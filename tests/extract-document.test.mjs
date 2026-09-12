@@ -175,3 +175,13 @@ test("keeps work content after a standalone numbered line and an internship note
   assert.match(facts.experiences[0].description, /付费玩法设计/);
   assert.doesNotMatch(facts.experiences[0].description, /^1\.$/);
 });
+
+test("keeps each category from a skills and certificates section as one skill entry", () => {
+  const facts = buildFacts([{ id: "p2-b1", page: 2, text: "技能／证书及其他\n● 商业化运营：付费卡点 设计、会 员体系设计、活动复盘\n● 用户运营：用户分层、RFM 分析、LTV 分析\n● 产品运营：竞 品分析、Axure 原型设计\n● 工具使用：Axure、Excel、数据看板" }]);
+  assert.deepEqual(facts.skills, [
+    "商业化运营：付费卡点设计、会员体系设计、活动复盘",
+    "用户运营：用户分层、RFM 分析、LTV 分析",
+    "产品运营：竞品分析、Axure 原型设计",
+    "工具使用：Axure、Excel、数据看板",
+  ]);
+});
