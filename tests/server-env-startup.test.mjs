@@ -5,8 +5,11 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
-const projectRoot = new URL("..", import.meta.url);
+const projectRoot = fileURLToPath(new URL("..", import.meta.url));
+const serverEntry = path.join(projectRoot, "server", "index.js");
+const providerVariables = ["AI_PROVIDER", "OPENAI_API_KEY", "OPENAI_MODEL", "DEEPSEEK_API_KEY", "DEEPSEEK_MODEL", "QWEN_API_KEY", "QWEN_MODEL"];
 
 function reservePort() {
   return new Promise((resolve, reject) => {
@@ -17,6 +20,14 @@ function reservePort() {
       server.close((error) => (error ? reject(error) : resolve(port)));
     });
   });
+}
+
+function cleanEnvironment(port, values = {}) {
+  const environment = { ...process.env, PORT: String(port), ...values };
+  for (const variable of providerVariables) {
+    if (!(variable in values)) delete environment[variable];
+  }
+  return environment;
 }
 
 async function waitForConfig(url, child) {
@@ -42,22 +53,20 @@ function stop(child) {
   });
 }
 
-test("server startup loads the selected provider configuration from an env file without calling a provider", async () => {
+test("local server startup loads the selected provider configuration from an env file without calling a provider", async () => {
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url)));
-  assert.match(packageJson.scripts.server, /--env-file(?:=|\s+)\.env/);
+  assert.equal(packageJson.scripts.server, "node server/index.js");
+  assert.equal(packageJson.scripts["server:dev"], "node --env-file=.env server/index.js");
+  assert.match(packageJson.scripts["dev:full"], /npm run server:dev/);
 
   const tempDirectory = await mkdtemp(path.join(os.tmpdir(), "resume-env-startup-"));
   const envFile = path.join(tempDirectory, "fixture.env");
   const port = await reservePort();
-  const environment = { ...process.env, PORT: String(port) };
-  for (const variable of ["AI_PROVIDER", "OPENAI_API_KEY", "OPENAI_MODEL", "DEEPSEEK_API_KEY", "DEEPSEEK_MODEL", "QWEN_API_KEY", "QWEN_MODEL"]) {
-    delete environment[variable];
-  }
   await writeFile(envFile, "AI_PROVIDER=deepseek\nDEEPSEEK_API_KEY=dummy-startup-key\nDEEPSEEK_MODEL=dummy-startup-model\n");
 
-  const child = spawn(process.execPath, ["--env-file", envFile, "server/index.js"], {
-    cwd: new URL("..", import.meta.url),
-    env: environment,
+  const child = spawn(process.execPath, ["--env-file", envFile, serverEntry], {
+    cwd: projectRoot,
+    env: cleanEnvironment(port),
     stdio: "ignore",
   });
   try {
@@ -70,5 +79,30 @@ test("server startup loads the selected provider configuration from an env file 
   } finally {
     await stop(child);
     await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test("generic server startup uses injected provider variables without an env file or provider network call", async () => {
+  const temporaryWorkingDirectory = await mkdtemp(path.join(os.tmpdir(), "resume-process-env-"));
+  const port = await reservePort();
+  const child = spawn(process.execPath, [serverEntry], {
+    cwd: temporaryWorkingDirectory,
+    env: cleanEnvironment(port, {
+      AI_PROVIDER: "qwen",
+      QWEN_API_KEY: "dummy-process-key",
+      QWEN_MODEL: "dummy-process-model",
+    }),
+    stdio: "ignore",
+  });
+  try {
+    const response = await waitForConfig(`http://127.0.0.1:${port}/api/config`, child);
+    assert.deepEqual(await response.json(), {
+      provider: "qwen",
+      model: "dummy-process-model",
+      configured: true,
+    });
+  } finally {
+    await stop(child);
+    await rm(temporaryWorkingDirectory, { recursive: true, force: true });
   }
 });
