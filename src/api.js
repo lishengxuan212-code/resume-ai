@@ -17,8 +17,10 @@ export function createResumeApi(dependencies = {}) {
     try { return await response.json(); } catch { throw new Error('简历服务返回了无法读取的内容，请重试。'); }
   }
   const post = body => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  return {
+  let api;
+  api = {
     getApiConfig: () => json('/api/config'),
+    getResumeTemplates: () => json('/api/templates'),
     extractResume(file) {
       const body = new FormData();
       body.append('resume', file);
@@ -30,13 +32,15 @@ export function createResumeApi(dependencies = {}) {
       if (options.diagnosis) body.diagnosis = options.diagnosis;
       return json('/api/optimize', post(body));
     },
-    async downloadResume(facts, resume) {
-      const response = await request('/api/export', post({ facts, resume }));
+    async requestResumePdf(facts, resume, templateId = 'classic', signal) {
+      const response = await request('/api/export', { ...post({ facts, resume, templateId }), signal });
       if (!response.ok) throw await responseError(response, 'PDF 生成失败，请重试。');
       if (response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/pdf') {
         throw await responseError(response, '未收到 PDF 文件，请稍后重试。');
       }
-      const blob = await response.blob();
+      return response.blob();
+    },
+    saveResumePdf(blob) {
       const urls = dependencies.URL ?? globalThis.URL;
       const dom = dependencies.document ?? globalThis.document;
       const url = urls.createObjectURL(blob);
@@ -52,7 +56,12 @@ export function createResumeApi(dependencies = {}) {
         urls.revokeObjectURL(url);
       }
     },
+    async downloadResume(facts, resume, templateId = 'classic') {
+      const blob = await api.requestResumePdf(facts, resume, templateId);
+      api.saveResumePdf(blob);
+    },
   };
+  return api;
 }
 
-export const { getApiConfig, extractResume, diagnoseResume, optimizeResume, downloadResume } = createResumeApi();
+export const { getApiConfig, getResumeTemplates, extractResume, diagnoseResume, optimizeResume, requestResumePdf, saveResumePdf, downloadResume } = createResumeApi();

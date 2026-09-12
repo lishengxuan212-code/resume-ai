@@ -6,7 +6,7 @@ import { createApp } from "../server/app.js";
 const key = "test-only-secret-never-real";
 const config = { provider: "openai", model: "server-model", apiKey: key, configured: true };
 const facts = { name: "张三", contact: "", education: [], experiences: [], skills: [], warnings: [], sourceBlocks: [{ id: "p1-b1", text: "产品实习：负责用户访谈", page: 1 }] };
-const resume = { methodologyVersion: '0.1', summary: "有用户访谈经验", targetRole: "产品助理", sections: [{ heading: "经历", entries: [{ title: "产品实习", organization: "", dates: "", bullets: [{ title: '用户访谈', text: '开展用户访谈并整理反馈', sourceIds: ['p1-b1'], ruleIds: ['F01', 'E02'] }] }] }], omissions: [], warnings: [] };
+const resume = { methodologyVersion: '0.1', summary: "有用户访谈经验", targetRole: "产品助理", sections: [{ type: 'custom', heading: "经历", entries: [{ title: "产品实习", organization: "", dates: "", bullets: [{ title: '用户访谈', text: '开展用户访谈并整理反馈', sourceIds: ['p1-b1'], ruleIds: ['F01', 'E02'] }] }] }], omissions: [], warnings: [] };
 const providerError = { error: { code: "provider_failed", message: "AI 服务暂时无法生成简历，请稍后重试。" } };
 
 test('a provider deadline returns recoverable 502 JSON', async () => {

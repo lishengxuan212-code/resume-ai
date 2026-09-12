@@ -13,7 +13,7 @@ test("validation projects only approved fields and uses server provider/model", 
   Object.assign(value, { provider: "qwen", model: "forged", apiKey: "discard-me" });
   value.sections[0].extra = "discard-me";
   value.sections[0].entries[0].extra = "discard-me";
-  assert.deepEqual(validate(value), { ...resume, provider: "openai", model: "server-model" });
+  assert.deepEqual(validate(value), { ...resume, sections: [{ ...resume.sections[0], type: 'custom' }], provider: "openai", model: "server-model" });
 });
 
 test('skill entry category labels are removed without relaxing employment title checks', () => {
@@ -83,7 +83,7 @@ test("accepts inclusive string and array limits, preserving text without HTML in
   value.sections[0].entries = Array(20).fill(entry);
   value.sections = Array(8).fill(value.sections[0]);
   const limitFacts = { sourceBlocks: [{ id: 'p1-b1', text: `${entry.title} ${entry.organization} ${entry.dates}` }] };
-  assert.deepEqual(validate(value, limitFacts), { ...value, provider: "openai", model: "server-model" });
+  assert.deepEqual(validate(value, limitFacts), { ...value, sections: value.sections.map(section => ({ ...section, type: 'custom' })), provider: "openai", model: "server-model" });
 });
 
 test('an unresolved diagnosed percentage cannot pass through unchanged after questions are skipped', () => {
@@ -132,4 +132,14 @@ test('education may omit bullets when no coursework, award or project fact exist
   const educationFacts = { sourceBlocks: [{ id: 'education', text: '示例大学 信息管理 本科 2017.09-2021.06' }] };
   const output = { methodologyVersion: '0.1', summary: '', targetRole: '产品运营', sections: [{ heading: '教育经历', entries: [{ title: '信息管理 本科', organization: '示例大学', dates: '2017.09-2021.06', bullets: [] }] }], omissions: [], warnings: [] };
   assert.equal(validateOptimizedResume(output, educationFacts, 'test', 'test').sections[0].entries[0].bullets.length, 0);
+});
+
+test('keeps an explicit section type when a user-facing heading is renamed', () => {
+  const output = structuredClone(resume);
+  output.sections[0].type = 'experience';
+  output.sections[0].heading = '我的实践';
+  assert.equal(validate(output).sections[0].type, 'experience');
+  const invalid = structuredClone(output);
+  invalid.sections[0].type = 'unknown';
+  assert.throws(() => validate(invalid), failure);
 });

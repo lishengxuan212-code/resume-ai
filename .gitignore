@@ -15,6 +15,7 @@ private-data/
 data/
 tmp/
 output/playwright/
+output/pdf/
 *.sqlite
 *.sqlite-*
 *.db

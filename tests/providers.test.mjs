@@ -6,7 +6,7 @@ import { AppError } from "../server/errors.js";
 
 const facts = { sourceBlocks: [{ id: "p1-b1", text: '实习：负责用户访谈\n"原文"', page: 1 }] };
 const input = { facts, targetRole: "产品助理" };
-const resume = { methodologyVersion: '0.1', summary: "访谈经验", targetRole: "产品助理", sections: [{ heading: "经历", entries: [{ title: "实习", organization: "", dates: "", bullets: [{ title: '用户访谈', text: '开展用户访谈并整理反馈', sourceIds: ['p1-b1'], ruleIds: ['F01', 'E02'] }] }] }], omissions: [], warnings: [] };
+const resume = { methodologyVersion: '0.1', summary: "访谈经验", targetRole: "产品助理", sections: [{ type: 'custom', heading: "经历", entries: [{ title: "实习", organization: "", dates: "", bullets: [{ title: '用户访谈', text: '开展用户访谈并整理反馈', sourceIds: ['p1-b1'], ruleIds: ['F01', 'E02'] }] }] }], omissions: [], warnings: [] };
 const key = "fake-test-provider-key";
 const config = (provider) => ({ provider, model: `${provider}-server-model`, apiKey: key, configured: true });
 const openaiOutput = (text) => ({ status: "completed", output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text, annotations: [] }] }] });

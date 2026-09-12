@@ -58,6 +58,38 @@ test("exports a reviewed resume as a PDF attachment", async () => {
   assert.equal(result.disposition, 'attachment; filename="optimized-resume.pdf"');
 });
 
+test('lists the templates actually enabled by the export service', async () => {
+  const server = http.createServer(createApp());
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/api/templates`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(await response.json(), {
+      templates: [
+        { id: 'classic', name: '经典', version: 1 },
+        { id: 'minimal', name: '简约', version: 1 },
+        { id: 'sidebar', name: '侧栏', version: 1 },
+      ],
+      defaultTemplateId: 'classic',
+    });
+  } finally {
+    await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
+});
+
+test('passes the selected template to the PDF service and rejects unknown templates', async () => {
+  let received;
+  const selected = await post({ facts, resume, templateId: 'sidebar' }, { services: { exportPdf: async input => { received = input; return Buffer.from('%PDF-test'); } } });
+  assert.equal(selected.status, 200);
+  assert.equal(received.templateId, 'sidebar');
+  let calls = 0;
+  const unknown = await post({ facts, resume, templateId: 'not-a-template' }, { services: { exportPdf: async () => { calls += 1; return Buffer.from('%PDF-test'); } } });
+  assert.equal(unknown.status, 400);
+  assert.match(unknown.body, /请选择可用的简历模板/);
+  assert.equal(calls, 0);
+});
+
 test("exports user-confirmed final-page edits without requiring another AI pass", async () => {
   let exported;
   const editedResume = structuredClone(resume);

@@ -3,7 +3,7 @@ import { FileArrowUp } from '@phosphor-icons/react';
 import '@fontsource/noto-serif-sc/400.css';
 import { Modal } from './Modal';
 import { validateFile, fileSize } from './intake';
-import { getApiConfig, extractResume, diagnoseResume, optimizeResume, downloadResume } from './api';
+import { getApiConfig, getResumeTemplates, extractResume, diagnoseResume, optimizeResume, saveResumePdf, downloadResume } from './api';
 import { draftToFacts, factsToDraft, prepareReviewedFacts, updateReviewedEntry, removeReviewedEntry, updateReviewedSkills } from './resume-state';
 import { ReviewPage } from './ReviewPage';
 import { RequiredMark } from './ReadableEditor';
@@ -32,6 +32,9 @@ export function App() {
   const [configError, setConfigError] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [notice, setNotice] = useState('');
+  const [templates, setTemplates] = useState([{ id: 'classic', name: '经典', version: 1 }, { id: 'minimal', name: '简约', version: 1 }, { id: 'sidebar', name: '侧栏', version: 1 }]);
+  const [templateId, setTemplateId] = useState('classic');
+  const [previewPdf, setPreviewPdf] = useState(null);
   const busy = status === 'extracting' || status === 'diagnosing' || status === 'optimizing' || downloading;
   const statusText = status === 'extracting' ? '正在识别简历' : status === 'diagnosing' ? '正在按方法论检查材料' : status === 'optimizing' ? '正在优化简历' : downloading ? '正在生成 PDF' : status === 'error' ? error : notice || ({ idle: '请选择简历或在线填写。', reviewing: '请核对并编辑简历事实。', diagnosed: '材料诊断已完成，可以补充回答或直接优化。', ready: '简历优化已完成，可以查看结果并下载 PDF。' }[status]);
   const close = () => setPanel(null);
@@ -42,6 +45,15 @@ export function App() {
     try { const next = await getApiConfig(); setConfig(next); return next; }
     catch (issue) { setConfig(null); setConfigError(issue.message); return null; }
     finally { setConfigLoading(false); }
+  }
+  async function readTemplates() {
+    try {
+      const result = await getResumeTemplates();
+      if (Array.isArray(result.templates) && result.templates.length) {
+        setTemplates(result.templates);
+        setTemplateId(current => result.templates.some(template => template.id === current) ? current : result.defaultTemplateId || result.templates[0].id);
+      }
+    } catch { /* Classic remains available as the local fallback label. */ }
   }
   function beginReview(nextFacts, role = targetRole) {
     setFacts(nextFacts); setTargetRole(role); setResume(null); setDiagnosis(null); setError(''); setNotice(''); setStatus('reviewing'); setPanel('review');
@@ -95,14 +107,19 @@ export function App() {
     try {
       setError(''); setNotice(''); setStatus('optimizing');
       const result = await optimizeResume(facts, targetRole.trim(), { jobDescription: jobDescription.trim(), answers, skipQuestions, diagnosis });
-      setFacts(result.facts || facts); setResume(result.resume); setStatus('ready'); setPanel('result');
+      setFacts(result.facts || facts); setResume(result.resume); setPreviewPdf(null); setStatus('ready'); setPanel('result'); void readTemplates();
     } catch (issue) { fail(issue); }
     finally { operation.current = false; }
   }
   async function download() {
+    if (previewPdf) {
+      saveResumePdf(previewPdf);
+      setNotice('已下载与当前预览一致的 PDF。');
+      return;
+    }
     if (operation.current) return;
     operation.current = true; setDownloading(true); setError(''); setNotice(''); setStatus('ready');
-    try { await downloadResume(facts, resume); setNotice('PDF 已生成，并已发起下载。'); }
+    try { await downloadResume(facts, resume, templateId); setNotice('PDF 已生成，并已发起下载。'); }
     catch (issue) { fail(issue); }
     finally { operation.current = false; setDownloading(false); }
   }
@@ -125,7 +142,7 @@ export function App() {
 
   if (panel === 'diagnosis' && diagnosis) return <><DiagnosisPage diagnosis={diagnosis} busy={busy} statusText={statusText} error={status === 'error' ? error : ''} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onOptimize={(answers, skip) => void runOptimization(answers, skip)} />{loading}</>;
 
-  if (panel === 'result' && resume && facts) return <><ResultPage facts={facts} resume={resume} busy={busy} downloading={downloading} status={status} statusText={statusText} onFacts={next => { setFacts(next); setNotice('修改已保存在当前页面，可以直接下载 PDF。'); setError(''); setStatus('ready'); }} onResume={next => { setResume(next); setNotice('修改已保存在当前页面，可以直接下载 PDF。'); setError(''); setStatus('ready'); }} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onDownload={download} />{loading}</>;
+  if (panel === 'result' && resume && facts) return <><ResultPage facts={facts} resume={resume} busy={busy} downloading={downloading} status={status} statusText={statusText} templates={templates} templateId={templateId} onTemplateId={value => { setTemplateId(value); setPreviewPdf(null); }} onFacts={next => { setFacts(next); setPreviewPdf(null); setNotice('修改已保存在当前页面，预览将自动更新。'); setError(''); setStatus('ready'); }} onResume={next => { setResume(next); setPreviewPdf(null); setNotice('修改已保存在当前页面，预览将自动更新。'); setError(''); setStatus('ready'); }} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onDownload={{ download, setPreviewPdf }} />{loading}</>;
 
   return <div className="page">
     <header className="site-header"><a className="wordmark" href="/" aria-label="简历首页">简历</a><button className="login-link" onClick={() => setPanel('login')}>登录</button></header>

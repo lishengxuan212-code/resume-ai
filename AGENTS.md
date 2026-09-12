@@ -46,3 +46,9 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Render every skill as one inline `小标题：正文` item in both the result page and PDF. Do not add entry-level headings or use broad skill bullet labels such as `商业化运营`, `用户运营`, `产品运营`, `工具`, `常用工具`, `工具使用`, or `工具能力`; prefer specific labels such as `付费与活动玩法` or `原型与数据处理`.
 - Do not equate fact fidelity with copying the source. Before generation, diagnosis should propose a conservative, source-supported rewrite for unclear or poorly expressed material and let the user adopt or edit it as confirmation. Generation may omit irrelevant, duplicate or ambiguous source wording and restructure confirmed facts, but must never guess missing metrics, responsibility boundaries or outcomes.
 - Reject unknown sources/rules, unsupported new numbers and invented entry metadata. Compare generated bullets with cited material. Keep one browser request and loading overlay active while the server performs an initial attempt plus at most two automatic retries for invalid or insufficiently optimized results; only surface failure after all three attempts fail.
+
+## Resume templates and PDF preview
+
+- Keep facts, optimized resume content and template-only render data separate. Module `type` expresses semantics while the user-facing section title remains editable; AI never controls page layout, font, color, columns or pagination.
+- In the result workspace, show a real PDF preview and make download reuse the same current PDF Blob. Preview updates after editing settles, while a stale preview must never be presented as the current downloadable resume.
+- Keep `经典` as the ATS-safe single-column baseline. `简约` may adjust hierarchy within the same content order. `侧栏` is an optional layout that moves only contact and skills into the sidebar; it must still preserve every non-skill section in the main reading order and pass overflow review.

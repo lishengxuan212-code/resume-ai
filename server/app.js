@@ -9,6 +9,7 @@ import { validateDiagnosisInput, validateOptimizedResume, validateOptimizeInput 
 import { safeProviderError } from "./provider-error.js";
 import { validateDiagnosis } from './diagnosis-validation.js';
 import { METHODOLOGY_VERSION } from './methodology/index.js';
+import { getResumeTemplate, listResumeTemplates } from './render/registry.js';
 
 const PROVIDERS = new Set(["openai", "deepseek", "qwen"]);
 
@@ -22,9 +23,12 @@ function validateExportInput(value) {
     // provenance checks, but do not reject facts the user has directly edited in
     // the final resume after AI generation.
     const validated = validateOptimizedResume(value?.resume, input.facts, "export", "export", { userConfirmedEdits: true });
+    const templateId = value?.templateId === undefined ? 'classic' : value.templateId;
+    if (typeof templateId !== 'string' || !getResumeTemplate(templateId)) throw new AppError(400, 'template_invalid', '请选择可用的简历模板。');
     return {
       facts: input.facts,
       resume: { summary: validated.summary, targetRole: validated.targetRole, sections: validated.sections },
+      templateId,
     };
   } catch (error) {
     if (error instanceof AppError && error.code === "provider_failed") {
@@ -58,6 +62,12 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
     } catch (error) {
       next(error);
     }
+  });
+
+  app.get('/api/templates', (request, response) => {
+    void request;
+    response.setHeader('Cache-Control', 'no-store');
+    response.json({ templates: listResumeTemplates(), defaultTemplateId: 'classic' });
   });
 
   app.post("/api/extract", upload.single("resume"), async (request, response, next) => {
@@ -114,6 +124,7 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
     try {
       const input = validateExportInput(request.body);
       const pdf = await (services?.exportPdf ?? exportPdf)(input);
+      response.setHeader('Cache-Control', 'no-store');
       response.type("application/pdf");
       response.setHeader("Content-Disposition", 'attachment; filename="optimized-resume.pdf"');
       response.send(pdf);

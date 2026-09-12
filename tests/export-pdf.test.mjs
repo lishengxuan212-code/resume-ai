@@ -59,6 +59,18 @@ test("exports a non-empty Chinese PDF from reviewed facts and resume", async () 
   assert.doesNotMatch(text, /只在当前页面展示的简历提醒/);
 });
 
+test('every enabled template preserves the canonical resume content', async () => {
+  const exportPdf = await getExportPdf();
+  for (const templateId of ['classic', 'minimal', 'sidebar']) {
+    const pdf = await exportPdf({ facts, resume, templateId });
+    assert.equal(pdf.subarray(0, 5).toString('ascii'), '%PDF-');
+    const text = await extractText(pdf);
+    assert.match(text, /张三/);
+    assert.match(text, /产品实习生/);
+    assert.match(text, /用户访谈/);
+  }
+});
+
 test("exports long reviewed content across pages without throwing", async () => {
   const exportPdf = await getExportPdf();
   assert.equal(typeof exportPdf, "function");
