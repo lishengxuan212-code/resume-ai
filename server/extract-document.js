@@ -13,18 +13,23 @@ function appendSourceBlocks(blocks, text, page, lineEnds = []) {
   let start = 0;
   let index = 1;
   while (start < text.length) {
-    if (blocks.length >= MAX_SOURCE_BLOCKS) {
-      throw new AppError(400, "document_too_long", "文档过长，暂时无法处理，请精简简历内容后重新上传。");
-    }
     let end = Math.min(start + MAX_SOURCE_BLOCK_TEXT_LENGTH, text.length);
     if (end < text.length) {
       const newline = text.lastIndexOf("\n", end - 1) + 1;
       const lineEnd = lineEnds.findLast((offset) => offset > start && offset <= end) ?? 0;
       const boundary = Math.max(newline, lineEnd);
-      // Keep delimiters in the chunks so concatenation preserves the text.
+      // Keep delimiters when selecting a boundary for a nonblank chunk.
       if (boundary > start && text.slice(start, boundary).trim()) end = boundary;
     }
-    blocks.push({ id: `${page === null ? "docx" : `p${page}`}-b${index++}`, text: text.slice(start, end), page });
+    const chunk = text.slice(start, end);
+    // Blank gaps carry no source evidence and cannot pass optimization validation.
+    // Count and number only meaningful chunks; retain their text and delimiters.
+    if (chunk.trim()) {
+      if (blocks.length >= MAX_SOURCE_BLOCKS) {
+        throw new AppError(400, "document_too_long", "文档过长，暂时无法处理，请精简简历内容后重新上传。");
+      }
+      blocks.push({ id: `${page === null ? "docx" : `p${page}`}-b${index++}`, text: chunk, page });
+    }
     start = end;
   }
 }

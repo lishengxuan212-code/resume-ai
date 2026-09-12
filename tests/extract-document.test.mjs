@@ -67,6 +67,22 @@ for (const [label, paragraphs] of [
   });
 }
 
+for (const [label, gap] of [
+  ['a whitespace-only paragraph', [' '.repeat(12000)]],
+  ['many empty paragraphs', Array(7000).fill('')],
+  ['more than 30 whitespace-only chunks', [' '.repeat(360000)]],
+]) {
+  test(`DOCX ignores blank source chunks and remains valid: ${label}`, async () => {
+    const first = 'A'.repeat(12000);
+    const buffer = await docxWithParagraphs([first, ...gap, 'B with words']);
+    const { facts } = await extractDocument({ originalname: 'blank-gaps.docx', buffer, size: buffer.length });
+    assert.doesNotThrow(() => validateOptimizeInput({ facts, targetRole: '产品助理' }));
+    assert.deepEqual(facts.sourceBlocks.map(block => [block.id, block.page]), [['docx-b1', null], ['docx-b2', null]]);
+    assert.deepEqual(facts.sourceBlocks.map(block => block.text.trim()), [first, 'B with words']);
+    assert.ok(facts.sourceBlocks.every(block => block.text.length <= 12000));
+  });
+}
+
 test('DOCX requiring 31 source chunks is rejected at extraction', async () => {
   const buffer = await docxWithParagraphs(['字'.repeat(360001)]);
   await assert.rejects(extractDocument({ originalname: 'too-long.docx', buffer, size: buffer.length }),
