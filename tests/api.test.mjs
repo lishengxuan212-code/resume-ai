@@ -48,7 +48,7 @@ test('export downloads the PDF blob then releases its URL and removes the anchor
   const events = [];
   const anchor = { click() { events.push(['click', this.href, this.download]); }, remove() { events.push(['remove']); } };
   const client = create({
-    fetch: async (url, init) => { assert.equal(url, '/api/export'); assert.deepEqual(JSON.parse(init.body), { facts: { name: '张三' }, resume: { summary: '结果' }, templateId: 'classic' }); return new Response('%PDF-1.7', { headers: { 'Content-Type': 'application/pdf' } }); },
+    fetch: async (url, init) => { assert.equal(url, '/api/export'); assert.deepEqual(JSON.parse(init.body), { facts: { name: '张三' }, resume: { summary: '结果' }, templateId: 'recommended' }); return new Response('%PDF-1.7', { headers: { 'Content-Type': 'application/pdf' } }); },
     URL: { createObjectURL(blob) { assert.ok(blob instanceof Blob); assert.equal(blob.type, 'application/pdf'); events.push(['create']); return 'blob:resume'; }, revokeObjectURL(url) { events.push(['revoke', url]); } },
     document: { createElement(tag) { assert.equal(tag, 'a'); return anchor; }, body: { append(node) { assert.equal(node, anchor); events.push(['append']); } } },
   });

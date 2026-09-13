@@ -38,3 +38,11 @@ test('preserves an explicit type when users rename the visible heading', () => {
   assert.equal(withItem.sections[0].type, 'experience');
   assert.equal(withItem.sections[0].title, '我的实践');
 });
+
+test('keeps education out of the personal summary without removing a work audience', () => {
+  const result = toRenderResume({ education: [{ school: '示例大学', major: '信息管理', degree: '本科' }] }, {
+    summary: '毕业于示例大学信息管理专业本科。负责大学生用户的活动运营与反馈整理。',
+    sections: [],
+  });
+  assert.equal(result.summary, '负责大学生用户的活动运营与反馈整理。');
+});

@@ -8,6 +8,13 @@ export function providerFailed() { return new AppError(502, 'provider_failed', '
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isText = (value, max, required = false) => typeof value === 'string' && value.length <= max && (!required || value.trim().length > 0);
 const isList = (value, max, required = true) => Array.isArray(value) && value.length <= max && (!required || value.length > 0);
+const experienceDateRank = value => {
+  const values = [...String(value ?? '').matchAll(/(\d{4})(?:[.\-/年]\s*(\d{1,2}))?/g)]
+    .map(([, year, month]) => Number(year) * 100 + Number(month || 12));
+  return values.length ? Math.max(...values) : -1;
+};
+const recentFirst = entries => entries.map((entry, index) => ({ entry, index, rank: experienceDateRank(entry.dates) }))
+  .sort((left, right) => right.rank - left.rank || left.index - right.index).map(item => item.entry);
 
 function cleanAnswers(value, fail) {
   const answers = value === undefined ? [] : value;
@@ -93,7 +100,7 @@ export function validateOptimizedResume(value, facts, provider, model, options =
       });
       return { title: skillEntry ? '' : entry.title, organization: entry.organization, dates: entry.dates, bullets };
     });
-    return { type, heading, entries };
+    return { type, heading, entries: type === 'experience' ? recentFirst(entries) : entries };
   });
   const answeredQuestionIds = new Set((options.answers ?? []).filter(answer => answer?.answer?.trim()).map(answer => answer.questionId));
   const unresolvedPercentages = (options.diagnosis?.findings ?? []).flatMap(finding => {

@@ -1,5 +1,6 @@
 import { normalizedSectionType } from './section-types.js';
 import { normalizeResumeText } from './display-text.js';
+import { withoutEducationBackground } from './summary.js';
 
 const text = value => normalizeResumeText(value);
 const rawText = value => typeof value === 'string' ? value.trim() : '';
@@ -22,7 +23,7 @@ export function toRenderResume(facts = {}, resume = {}, presentation = {}) {
         period: text(entry.dates),
       })).filter(entry => entry.school || entry.major || entry.degree || entry.period),
     },
-    summary: text(resume.summary),
+    summary: withoutEducationBackground(text(resume.summary), facts.education),
     sections: (resume.sections ?? []).filter(section => !(facts.education?.length && normalizedSectionType(section.type, section.heading) === 'education')).map((section, sectionIndex) => ({
       id: text(section.id) || stableId('section', sectionIndex + 1, normalizedSectionType(section.type, section.heading)),
       type: normalizedSectionType(section.type, section.heading),

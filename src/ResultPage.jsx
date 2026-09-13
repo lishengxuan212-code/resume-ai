@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, DownloadSimple, PencilSimple, Sparkle } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowUpRight, PencilSimple, Sparkle } from '@phosphor-icons/react';
 import { ResumePreview } from './ResumePreview';
+import { withoutEducationBackground } from '../shared/resume/summary.js';
 
 const providerNames = { openai: 'OpenAI', deepseek: 'DeepSeek', qwen: '通义千问' };
 const canonicalHeading = heading => /^(专业技能|核心技能|技能清单|专业能力|技能)$/.test(heading?.trim()) ? '技能' : heading;
@@ -33,14 +34,15 @@ function AvatarField({ avatarDataUrl, onAvatarFile, onRemoveAvatar }) {
 export function ResultPage({ facts, resume, busy, downloading, status, statusText, onFacts, onResume, onBack, onDownload, presentation = { avatarDataUrl: '' }, onAvatarFile = () => {}, onRemoveAvatar = () => {}, templates = [{ id: 'recommended', name: '推荐' }, { id: 'classic', name: '经典' }, { id: 'minimal', name: '简约' }, { id: 'sidebar', name: '紧凑' }], templateId = 'recommended', onTemplateId = () => {} }) {
   const heading = useRef(null);
   const [editing, setEditing] = useState(false);
+  const summary = withoutEducationBackground(resume.summary, facts.education);
   useEffect(() => { window.scrollTo(0, 0); heading.current?.focus({ preventScroll: true }); }, []);
   const toggleEditing = () => setEditing(value => !value);
   const sections = [
     ['result-basics', '基本资料'],
-    ...(resume.summary || editing ? [['result-summary', '个人概述']] : []),
+    ...(summary || editing ? [['result-summary', '个人概述']] : []),
     ...resume.sections.map((section, index) => [`result-section-${index}`, canonicalHeading(section.heading)]),
-    ['result-preview', '排版预览'],
     ['result-notes', '简历提醒'],
+    ['result-preview', '排版预览'],
   ];
   const scrollTo = id => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const updateSection = (sectionIndex, patch) => onResume({ ...resume, sections: resume.sections.map((section, index) => index === sectionIndex ? { ...section, ...patch } : section) });
@@ -62,7 +64,7 @@ export function ResultPage({ facts, resume, busy, downloading, status, statusTex
               <div><p className="result-label">目标岗位</p>{editing ? <input className="result-basic-input" value={resume.targetRole} maxLength={200} aria-label="编辑目标岗位" onChange={event => onResume({ ...resume, targetRole: event.target.value })} /> : <p>{resume.targetRole}</p>}</div>
             </div>
           </section>
-          {(resume.summary || editing) && <section className="review-section" id="result-summary"><div className="review-section-heading"><h2>个人概述</h2><div className="result-section-actions"><span>核心定位</span><SectionEditControl editing={editing} label="个人概述" onToggle={toggleEditing} /></div></div>{editing ? <AutoTextarea className="result-inline-textarea result-summary-editor" value={resume.summary} maxLength={1000} label="编辑个人概述" onChange={summary => onResume({ ...resume, summary })} /> : <p className="result-summary">{resume.summary}</p>}</section>}
+          {(summary || editing) && <section className="review-section" id="result-summary"><div className="review-section-heading"><h2>个人概述</h2><div className="result-section-actions"><span>核心定位</span><SectionEditControl editing={editing} label="个人概述" onToggle={toggleEditing} /></div></div>{editing ? <AutoTextarea className="result-inline-textarea result-summary-editor" value={summary} maxLength={1000} label="编辑个人概述" onChange={nextSummary => onResume({ ...resume, summary: nextSummary })} /> : <p className="result-summary">{summary}</p>}</section>}
           {resume.sections.map((section, sectionIndex) => {
             const sectionHeading = canonicalHeading(section.heading);
             const isSkillSection = section.type === 'skills' || sectionHeading === '技能';
@@ -78,10 +80,10 @@ export function ResultPage({ facts, resume, busy, downloading, status, statusTex
               })}
             </section>;
           })}
-          <ResumePreview facts={facts} resume={resume} templateId={templateId} templates={templates} presentation={presentation} onTemplateId={onTemplateId} onPdf={onDownload?.setPreviewPdf} />
           <section className="review-section result-notes" id="result-notes"><div className="review-section-heading"><h2>简历提醒</h2><div className="result-section-actions"><span>不会进入正式简历</span><SectionEditControl editing={editing} label="简历内容" onToggle={toggleEditing} /></div></div>{resume.warnings?.length > 0 && <ul className="result-warnings">{resume.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}<p>{providerNames[resume.provider] || resume.provider} 已完成表达优化，并通过来源引用和改写检查。投递前请确认职位、时间、数字和成果均与你的实际情况一致。本区内容仅供当前核对，不会写入下载的正式简历。</p></section>
+          <ResumePreview facts={facts} resume={resume} templateId={templateId} templates={templates} presentation={presentation} onTemplateId={onTemplateId} onPdf={onDownload?.setPreviewPdf} onDownload={onDownload?.download} />
         </article>
-        <div className="review-submit-area result-submit-area"><p className={status === 'error' ? 'error' : 'processing-status'} role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{statusText}</p><div className="review-actions"><button className="button secondary" type="button" disabled={busy} onClick={onBack}><PencilSimple size={17} />修改材料并重新优化</button><button className="button primary" type="button" disabled={busy} onClick={() => typeof onDownload === 'function' ? onDownload() : onDownload?.download?.()}>{downloading ? '正在生成 PDF…' : '下载 PDF'}<DownloadSimple size={18} /></button></div></div>
+        <div className="review-submit-area result-submit-area"><p className={status === 'error' ? 'error' : 'processing-status'} role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{statusText}</p><div className="review-actions"><button className="button secondary" type="button" disabled={busy} onClick={onBack}><PencilSimple size={17} />修改材料并重新优化</button></div></div>
       </main>
     </div>
   </div>;

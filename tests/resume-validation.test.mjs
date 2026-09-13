@@ -143,3 +143,16 @@ test('keeps an explicit section type when a user-facing heading is renamed', () 
   invalid.sections[0].type = 'unknown';
   assert.throws(() => validate(invalid), failure);
 });
+
+test('normalizes work and internship entries to newest first', () => {
+  const sortedFacts = { sourceBlocks: [{ id: 'work', text: '示例公司 旧实习 2021.03-2021.08 新实习 2025.01-至今 用户访谈 活动复盘' }] };
+  const output = {
+    methodologyVersion: '0.1', summary: '', targetRole: '产品运营',
+    sections: [{ type: 'experience', heading: '实习经历', entries: [
+      { title: '旧实习', organization: '示例公司', dates: '2021.03-2021.08', bullets: [{ title: '用户访谈', text: '开展用户访谈', sourceIds: ['work'], ruleIds: ['F01'] }] },
+      { title: '新实习', organization: '示例公司', dates: '2025.01-至今', bullets: [{ title: '活动复盘', text: '整理活动复盘', sourceIds: ['work'], ruleIds: ['F01'] }] },
+    ] }], omissions: [], warnings: [],
+  };
+  const normalized = validateOptimizedResume(output, sortedFacts, 'test', 'test');
+  assert.deepEqual(normalized.sections[0].entries.map(entry => entry.title), ['新实习', '旧实习']);
+});
