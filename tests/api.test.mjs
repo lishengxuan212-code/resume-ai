@@ -60,17 +60,17 @@ test('PDF requests include the selected template without downloading the preview
   let options;
   const blob = new Blob(['%PDF-test'], { type: 'application/pdf' });
   const client = create({ fetch: async (path, request) => { options = { path, request }; return new Response(blob, { headers: { 'Content-Type': 'application/pdf' } }); } });
-  const result = await client.requestResumePdf({ name: '张三' }, { targetRole: '产品助理' }, 'classic');
+  const result = await client.requestResumePdf({ name: '张三' }, { targetRole: '产品助理' }, 'recommended');
   assert.equal(await result.text(), '%PDF-test');
   assert.equal(options.path, '/api/export');
-  assert.deepEqual(JSON.parse(options.request.body), { facts: { name: '张三' }, resume: { targetRole: '产品助理' }, templateId: 'classic' });
+  assert.deepEqual(JSON.parse(options.request.body), { facts: { name: '张三' }, resume: { targetRole: '产品助理' }, templateId: 'recommended' });
 });
 
 test('PDF requests include the optional local avatar only for export', async () => {
   let options;
   const client = create({ fetch: async (path, request) => { options = { path, request }; return new Response('%PDF-test', { headers: { 'Content-Type': 'application/pdf' } }); } });
-  await client.requestResumePdf({ name: '张三' }, { targetRole: '产品助理' }, 'classic', { avatarDataUrl: 'data:image/jpeg;base64,AAAA' });
-  assert.deepEqual(JSON.parse(options.request.body), { facts: { name: '张三' }, resume: { targetRole: '产品助理' }, templateId: 'classic', presentation: { avatarDataUrl: 'data:image/jpeg;base64,AAAA' } });
+  await client.requestResumePdf({ name: '张三' }, { targetRole: '产品助理' }, 'recommended', { avatarDataUrl: 'data:image/jpeg;base64,AAAA' });
+  assert.deepEqual(JSON.parse(options.request.body), { facts: { name: '张三' }, resume: { targetRole: '产品助理' }, templateId: 'recommended', presentation: { avatarDataUrl: 'data:image/jpeg;base64,AAAA' } });
 });
 
 test('export rejects successful non-PDF responses using any server Chinese error', async () => {

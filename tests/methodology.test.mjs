@@ -9,7 +9,7 @@ const facts = { name: '张三', contact: '', education: [], experiences: [], ski
 test('methodology registry is versioned and has unique stable rule IDs', () => {
   assert.equal(METHODOLOGY_VERSION, '0.1');
   assert.equal(new Set(METHODOLOGY_RULES.map(rule => rule.id)).size, METHODOLOGY_RULES.length);
-  assert.deepEqual(METHODOLOGY_RULES.filter(rule => ['F01', 'F02', 'F03', 'E01', 'E02', 'E03', 'T01', 'T03', 'G01'].includes(rule.id)).map(rule => rule.id), ['F01', 'F02', 'F03', 'E01', 'E02', 'E03', 'T01', 'T03', 'G01']);
+  assert.deepEqual(METHODOLOGY_RULES.filter(rule => ['F01', 'F02', 'F03', 'E01', 'E02', 'E03', 'E04', 'T01', 'T03', 'G01'].includes(rule.id)).map(rule => rule.id), ['F01', 'F02', 'F03', 'E01', 'E02', 'E03', 'E04', 'T01', 'T03', 'G01']);
 });
 
 test('JD activates T01 while ordinary optimization does not waste prompt space on it', () => {
@@ -32,6 +32,8 @@ test('diagnosis proposes a conservative rewrite and generated skill headings are
   const optimizePrompt = buildPromptSections('optimize', { facts, targetRole: '数据分析', jobDescription: '' });
   assert.match(optimizePrompt.sections.find(section => section.id === 'task').content, /heading 必须固定为“技能”/);
   assert.match(optimizePrompt.sections.find(section => section.id === 'task').content, /可以删除与目标岗位无关、重复或事实口径不清的材料/);
+  assert.match(optimizePrompt.sections.find(section => section.id === 'task').content, /同一项目、同一阶段内连续的执行、方法与该项目可核对结果/);
+  assert.match(optimizePrompt.sections.find(section => section.id === 'methodology').content, /E04/);
 });
 
 test('all bounded material answers become cited, user-confirmed source blocks', () => {

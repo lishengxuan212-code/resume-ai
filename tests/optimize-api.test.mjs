@@ -39,7 +39,7 @@ test("optimize normalizes injected results with server provenance and strips ext
   });
   assert.equal(result.status, 200);
   assert.deepEqual(JSON.parse(result.text), { resume: { ...resume, provider: "openai", model: "server-model" }, facts });
-  assert.deepEqual(received, { facts, targetRole: "产品助理", jobDescription: '', answers: [], skipQuestions: false, ruleIds: ['F01', 'F02', 'F03', 'D03', 'E01', 'E02', 'E03', 'T03', 'L01', 'L02', 'G01'] });
+  assert.deepEqual(received, { facts, targetRole: "产品助理", jobDescription: '', answers: [], skipQuestions: false, ruleIds: ['F01', 'F02', 'F03', 'D03', 'E01', 'E02', 'E03', 'E04', 'T03', 'L01', 'L02', 'G01'] });
   assert.ok(!result.text.includes(key));
 });
 

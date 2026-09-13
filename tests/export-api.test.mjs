@@ -66,12 +66,7 @@ test('lists the templates actually enabled by the export service', async () => {
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('cache-control'), 'no-store');
     assert.deepEqual(await response.json(), {
-      templates: [
-        { id: 'recommended', name: '推荐', version: 1 },
-        { id: 'classic', name: '经典', version: 1 },
-        { id: 'minimal', name: '简约', version: 1 },
-        { id: 'sidebar', name: '紧凑', version: 1 },
-      ],
+      templates: [{ id: 'recommended', name: '推荐', version: 1 }],
       defaultTemplateId: 'recommended',
     });
   } finally {
@@ -79,14 +74,14 @@ test('lists the templates actually enabled by the export service', async () => {
   }
 });
 
-test('passes the selected template to the PDF service and rejects unknown templates', async () => {
+test('uses the only enabled recommended template and rejects other template IDs', async () => {
   let received;
-  const selected = await post({ facts, resume, templateId: 'sidebar' }, { services: { exportPdf: async input => { received = input; return Buffer.from('%PDF-test'); } } });
+  const selected = await post({ facts, resume, templateId: 'recommended' }, { services: { exportPdf: async input => { received = input; return Buffer.from('%PDF-test'); } } });
   assert.equal(selected.status, 200);
-  assert.equal(received.templateId, 'sidebar');
+  assert.equal(received.templateId, 'recommended');
   assert.equal(received.presentation.avatarDataUrl, '');
   let calls = 0;
-  const unknown = await post({ facts, resume, templateId: 'not-a-template' }, { services: { exportPdf: async () => { calls += 1; return Buffer.from('%PDF-test'); } } });
+  const unknown = await post({ facts, resume, templateId: 'classic' }, { services: { exportPdf: async () => { calls += 1; return Buffer.from('%PDF-test'); } } });
   assert.equal(unknown.status, 400);
   assert.match(unknown.body, /请选择可用的简历模板/);
   assert.equal(calls, 0);

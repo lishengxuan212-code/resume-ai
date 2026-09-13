@@ -3,7 +3,7 @@ import { FileArrowUp } from '@phosphor-icons/react';
 import '@fontsource/noto-serif-sc/400.css';
 import { Modal } from './Modal';
 import { validateFile, fileSize } from './intake';
-import { getApiConfig, getResumeTemplates, extractResume, diagnoseResume, optimizeResume, saveResumePdf, downloadResume } from './api';
+import { getApiConfig, extractResume, diagnoseResume, optimizeResume, saveResumePdf, downloadResume } from './api';
 import { draftToFacts, factsToDraft, prepareReviewedFacts, updateReviewedEntry, removeReviewedEntry, updateReviewedSkills } from './resume-state';
 import { ReviewPage } from './ReviewPage';
 import { RequiredMark } from './ReadableEditor';
@@ -33,8 +33,6 @@ export function App() {
   const [configError, setConfigError] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [notice, setNotice] = useState('');
-  const [templates, setTemplates] = useState([{ id: 'recommended', name: '推荐', version: 1 }, { id: 'classic', name: '经典', version: 1 }, { id: 'minimal', name: '简约', version: 1 }, { id: 'sidebar', name: '紧凑', version: 1 }]);
-  const [templateId, setTemplateId] = useState('recommended');
   const [previewPdf, setPreviewPdf] = useState(null);
   const [presentation, setPresentation] = useState({ avatarDataUrl: '' });
   const busy = status === 'extracting' || status === 'diagnosing' || status === 'optimizing' || downloading;
@@ -47,15 +45,6 @@ export function App() {
     try { const next = await getApiConfig(); setConfig(next); return next; }
     catch (issue) { setConfig(null); setConfigError(issue.message); return null; }
     finally { setConfigLoading(false); }
-  }
-  async function readTemplates() {
-    try {
-      const result = await getResumeTemplates();
-      if (Array.isArray(result.templates) && result.templates.length) {
-        setTemplates(result.templates);
-        setTemplateId(current => result.templates.some(template => template.id === current) ? current : result.defaultTemplateId || result.templates[0].id);
-      }
-    } catch { /* Classic remains available as the local fallback label. */ }
   }
   function beginReview(nextFacts, role = targetRole, nextPresentation = { avatarDataUrl: '' }) {
     setFacts(nextFacts); setTargetRole(role); setResume(null); setDiagnosis(null); setPresentation(nextPresentation); setError(''); setNotice(''); setStatus('reviewing'); setPanel('review');
@@ -113,7 +102,7 @@ export function App() {
     try {
       setError(''); setNotice(''); setStatus('optimizing');
       const result = await optimizeResume(facts, targetRole.trim(), { jobDescription: jobDescription.trim(), answers, skipQuestions, diagnosis });
-      setFacts(result.facts || facts); setResume(result.resume); setPreviewPdf(null); setStatus('ready'); setPanel('result'); void readTemplates();
+      setFacts(result.facts || facts); setResume(result.resume); setPreviewPdf(null); setStatus('ready'); setPanel('result');
     } catch (issue) { fail(issue); }
     finally { operation.current = false; }
   }
@@ -125,7 +114,7 @@ export function App() {
     }
     if (operation.current) return;
     operation.current = true; setDownloading(true); setError(''); setNotice(''); setStatus('ready');
-    try { await downloadResume(facts, resume, templateId, presentation); setNotice('PDF 已生成，并已发起下载。'); }
+    try { await downloadResume(facts, resume, 'recommended', presentation); setNotice('PDF 已生成，并已发起下载。'); }
     catch (issue) { fail(issue); }
     finally { operation.current = false; setDownloading(false); }
   }
@@ -148,7 +137,7 @@ export function App() {
 
   if (panel === 'diagnosis' && diagnosis) return <><DiagnosisPage diagnosis={diagnosis} busy={busy} statusText={statusText} error={status === 'error' ? error : ''} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onOptimize={(answers, skip) => void runOptimization(answers, skip)} />{loading}</>;
 
-  if (panel === 'result' && resume && facts) return <><ResultPage facts={facts} resume={resume} busy={busy} downloading={downloading} status={status} statusText={statusText} templates={templates} templateId={templateId} presentation={presentation} onTemplateId={value => { setTemplateId(value); setPreviewPdf(null); setNotice('模板已选中，可在模板库中生成预览。'); }} onAvatarFile={async file => { try { setPresentation({ avatarDataUrl: await makeAvatarDataUrl(file) }); setPreviewPdf(null); setError(''); setNotice('头像已更新，请在模板库重新生成预览。'); } catch (issue) { setError(''); setNotice(issue.message); } }} onRemoveAvatar={() => { setPresentation({ avatarDataUrl: '' }); setPreviewPdf(null); setNotice('头像已移除，请在模板库重新生成预览。'); }} onFacts={next => { setFacts(next); setPreviewPdf(null); setNotice('修改已保存，请在模板库重新生成预览。'); setError(''); setStatus('ready'); }} onResume={next => { setResume(next); setPreviewPdf(null); setNotice('修改已保存，请在模板库重新生成预览。'); setError(''); setStatus('ready'); }} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onDownload={{ download, setPreviewPdf }} />{loading}</>;
+  if (panel === 'result' && resume && facts) return <><ResultPage facts={facts} resume={resume} busy={busy} downloading={downloading} status={status} statusText={statusText} presentation={presentation} onAvatarFile={async file => { try { setPresentation({ avatarDataUrl: await makeAvatarDataUrl(file) }); setPreviewPdf(null); setError(''); setNotice('头像已更新，请重新生成 PDF 预览。'); } catch (issue) { setError(''); setNotice(issue.message); } }} onRemoveAvatar={() => { setPresentation({ avatarDataUrl: '' }); setPreviewPdf(null); setNotice('头像已移除，请重新生成 PDF 预览。'); }} onFacts={next => { setFacts(next); setPreviewPdf(null); setNotice('修改已保存，请重新生成 PDF 预览。'); setError(''); setStatus('ready'); }} onResume={next => { setResume(next); setPreviewPdf(null); setNotice('修改已保存，请重新生成 PDF 预览。'); setError(''); setStatus('ready'); }} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onDownload={{ download, setPreviewPdf }} />{loading}</>;
 
   return <div className="page">
     <header className="site-header"><a className="wordmark" href="/" aria-label="简历首页">简历</a><button className="login-link" onClick={() => setPanel('login')}>登录</button></header>

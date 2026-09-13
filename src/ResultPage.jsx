@@ -31,7 +31,7 @@ function AvatarField({ avatarDataUrl, onAvatarFile, onRemoveAvatar }) {
   return <div className="result-avatar-field"><p className="result-label">头像 <span className="optional">选填</span></p><div className="result-avatar-actions">{avatarDataUrl ? <img className="result-avatar-image" src={avatarDataUrl} alt="当前简历头像" /> : <span className="result-avatar-placeholder">头像</span>}<div><button className="result-avatar-button" type="button" onClick={() => fileInput.current?.click()}>{avatarDataUrl ? '更换头像' : '上传头像'}</button>{avatarDataUrl && <button className="result-avatar-remove" type="button" onClick={onRemoveAvatar}>移除</button>}</div></div><input ref={fileInput} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={event => { const file = event.target.files?.[0]; if (file) void onAvatarFile(file); event.target.value = ''; }} /></div>;
 }
 
-export function ResultPage({ facts, resume, busy, downloading, status, statusText, onFacts, onResume, onBack, onDownload, presentation = { avatarDataUrl: '' }, onAvatarFile = () => {}, onRemoveAvatar = () => {}, templates = [{ id: 'recommended', name: '推荐' }, { id: 'classic', name: '经典' }, { id: 'minimal', name: '简约' }, { id: 'sidebar', name: '紧凑' }], templateId = 'recommended', onTemplateId = () => {} }) {
+export function ResultPage({ facts, resume, busy, downloading, status, statusText, onFacts, onResume, onBack, onDownload, presentation = { avatarDataUrl: '' }, onAvatarFile = () => {}, onRemoveAvatar = () => {} }) {
   const heading = useRef(null);
   const [editing, setEditing] = useState(false);
   const summary = withoutEducationBackground(resume.summary, facts.education);
@@ -81,7 +81,7 @@ export function ResultPage({ facts, resume, busy, downloading, status, statusTex
             </section>;
           })}
           <section className="review-section result-notes" id="result-notes"><div className="review-section-heading"><h2>简历提醒</h2><div className="result-section-actions"><span>不会进入正式简历</span><SectionEditControl editing={editing} label="简历内容" onToggle={toggleEditing} /></div></div>{resume.warnings?.length > 0 && <ul className="result-warnings">{resume.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}<p>{resume.quality?.reason === 'conservative_fallback' ? '当前版本仅按你已核对的事实整理，未补充或推断新的信息。' : `${providerNames[resume.provider] || resume.provider} 已完成表达优化，并通过来源引用和改写检查。`} 投递前请确认职位、时间、数字和成果均与你的实际情况一致。本区内容仅供当前核对，不会写入下载的正式简历。</p></section>
-          <ResumePreview facts={facts} resume={resume} templateId={templateId} templates={templates} presentation={presentation} onTemplateId={onTemplateId} onPdf={onDownload?.setPreviewPdf} onDownload={onDownload?.download} />
+          <ResumePreview facts={facts} resume={resume} presentation={presentation} onPdf={onDownload?.setPreviewPdf} onDownload={onDownload?.download} />
         </article>
         <div className="review-submit-area result-submit-area"><p className={status === 'error' ? 'error' : 'processing-status'} role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{statusText}</p><div className="review-actions"><button className="button secondary" type="button" disabled={busy} onClick={onBack}><PencilSimple size={17} />修改材料并重新优化</button></div></div>
       </main>

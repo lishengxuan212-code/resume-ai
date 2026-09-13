@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle, CircleNotch, DownloadSimple, FilePdf, Layout, Minus, Plus, Sparkle, WarningCircle, X } from '@phosphor-icons/react';
+import { CheckCircle, CircleNotch, DownloadSimple, FilePdf, Minus, Plus, WarningCircle, X } from '@phosphor-icons/react';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { requestResumePdf } from './api';
 
@@ -122,31 +122,23 @@ function PdfDocument({ blob, modal = false }) {
   return <div className={`resume-preview-viewer ${modal ? 'is-modal-viewer' : ''}`}><div className="resume-preview-zoom" aria-label="预览缩放"><button type="button" aria-label="缩小预览" onClick={() => setScale(current => Math.max(0.8, Number((current - 0.12).toFixed(2))))}><Minus size={15} /></button><span>{Math.round(scale * 100)}%</span><button type="button" aria-label="放大预览" onClick={() => setScale(current => Math.min(1.5, Number((current + 0.12).toFixed(2))))}><Plus size={15} /></button></div><div className="resume-preview-pages">{Array.from({ length: document.numPages }, (_, index) => <PdfPage key={`${document.fingerprint}-${index + 1}-${scale}`} document={document} TextLayer={pdfjs.TextLayer} pageNumber={index + 1} scale={scale} />)}</div></div>;
 }
 
-const templateCopy = {
-  recommended: ['推荐', '右上方形头像、顶部教育信息、经历粗分隔线'],
-  classic: ['经典', '宋体风格、稳妥单栏、适合通用投递'],
-  minimal: ['简约', '留白更充足、层级更舒展'],
-  sidebar: ['紧凑', '信息密度更高、仍保持单栏阅读'],
-};
-
-function ExampleBlock({ title, children }) {
-  return <section className="template-example-section"><h5>{title}</h5>{children}</section>;
-}
-
-function TemplateThumbnail({ id }) {
-  return <div className={`template-thumbnail is-${id}`} aria-label="匿名简历排版示意"><div className="template-example-header"><div><strong>周晨</strong><span>产品运营实习生</span><small>138 0000 0000 · demo@example.com</small></div>{id !== 'minimal' && <i aria-hidden="true" />}</div><ExampleBlock title="教育背景"><p><b>北京大学</b><em>2020.09 – 2024.06</em></p><small>新闻与传播学 · 本科</small></ExampleBlock><ExampleBlock title="实习经历"><p><b>产品运营实习生</b><em>2024.03 – 至今</em></p><small>星河科技</small><ul><li>用户洞察与活动复盘</li><li>会员分层与转化跟进</li></ul></ExampleBlock><ExampleBlock title="项目经历"><p><b>校园增长项目</b></p><ul><li>梳理需求并推进上线</li></ul></ExampleBlock></div>;
-}
-
 function PreviewModal({ preview, onClose, onDownload }) {
-  return <div className="resume-preview-modal" role="dialog" aria-modal="true" aria-label="PDF 排版预览"><div className="resume-preview-modal-backdrop" onClick={onClose} /><section className="resume-preview-modal-surface"><header><div><p className="result-label">PDF 排版预览</p><h3>{preview.loading ? '正在生成你的简历' : '与你下载的 PDF 完全一致'}</h3></div><button type="button" className="resume-preview-close" aria-label="关闭 PDF 预览" onClick={onClose}><X size={20} /></button></header><div className="resume-preview-modal-body">{preview.loading && <div className="resume-preview-loading"><CircleNotch size={30} weight="bold" /><strong>正在排版并生成 PDF</strong><span>文字会自然换行和分页，完成后直接在这里展示。</span></div>}{preview.error && <div className="resume-preview-message" role="alert"><WarningCircle size={20} /><span>{preview.error} 返回模板库后可以重新生成。</span></div>}{preview.current && preview.blob && <PdfDocument blob={preview.blob} modal />}<aside className="resume-preview-modal-actions">{preview.current && preview.blob ? <><span><CheckCircle weight="fill" size={17} />PDF 已就绪</span><button className="button primary" type="button" onClick={onDownload}><DownloadSimple size={18} />下载 PDF</button><small>下载内容与左侧预览完全一致。</small></> : <span>{preview.loading ? '生成完成后可直接下载。' : '预览未生成。'}</span>}</aside></div></section></div>;
+  return <div className="resume-preview-modal" role="dialog" aria-modal="true" aria-label="PDF 排版预览"><div className="resume-preview-modal-backdrop" onClick={onClose} /><section className="resume-preview-modal-surface"><header><div><p className="result-label">推荐模板 · PDF 排版预览</p><h3>{preview.loading ? '正在生成你的简历' : '与你下载的 PDF 完全一致'}</h3></div><button type="button" className="resume-preview-close" aria-label="关闭 PDF 预览" onClick={onClose}><X size={20} /></button></header><div className="resume-preview-modal-body">{preview.loading && <div className="resume-preview-loading"><CircleNotch size={30} weight="bold" /><strong>正在排版并生成 PDF</strong><span>文字会自然换行和分页，完成后直接在这里展示。</span></div>}{preview.error && <div className="resume-preview-message" role="alert"><WarningCircle size={20} /><span>{preview.error} 请关闭后重新生成。</span></div>}{preview.current && preview.blob && <PdfDocument blob={preview.blob} modal />}<aside className="resume-preview-modal-actions">{preview.current && preview.blob ? <><span><CheckCircle weight="fill" size={17} />PDF 已就绪</span><button className="button primary" type="button" onClick={onDownload}><DownloadSimple size={18} />下载 PDF</button><small>下载内容与左侧预览完全一致。</small></> : <span>{preview.loading ? '生成完成后可直接下载。' : '预览未生成。'}</span>}</aside></div></section></div>;
 }
 
-export function ResumePreview({ facts, resume, templateId, templates, presentation, onTemplateId, onPdf, onDownload }) {
-  const preview = useResumePreview(facts, resume, templateId, presentation);
-  const [libraryOpen, setLibraryOpen] = useState(true);
+export function ResumePreview({ facts, resume, presentation, onPdf, onDownload }) {
+  const preview = useResumePreview(facts, resume, 'recommended', presentation);
+  const initialGeneration = useRef(false);
   const [modalOpen, setModalOpen] = useState(false);
   useEffect(() => { onPdf?.(preview.current && !preview.loading && !preview.error ? preview.blob : null); }, [onPdf, preview.blob, preview.current, preview.error, preview.loading]);
-  const selected = templates.find(template => template.id === templateId);
-  const generate = () => { setModalOpen(true); void preview.generate(); };
-  return <section className="resume-preview" id="result-preview" aria-label="排版预览"><div className="resume-preview-toolbar"><div><p className="result-label">排版预览</p><p>选择模板后生成真实 PDF；修改内容不会自动重复排版。</p></div><button className="template-library-trigger" type="button" aria-expanded={libraryOpen} onClick={() => setLibraryOpen(open => !open)}><Layout size={16} />{libraryOpen ? '收起模板库' : '打开模板库'}</button></div>{libraryOpen && <section className="template-library" aria-label="选择简历模板"><div className="template-library-heading"><div><p className="result-label">模板库</p><h3>选择一个排版方向</h3><p>每张卡片展示真实信息层级和版式；选择不会关闭模板库。</p></div><Sparkle size={22} /></div><div className="template-grid">{templates.map(template => { const [fallbackName, description] = templateCopy[template.id] ?? [template.name, '单栏中文简历模板']; const active = template.id === templateId; return <button type="button" className={`template-card ${active ? 'is-selected' : ''}`} key={template.id} aria-pressed={active} onClick={() => onTemplateId(template.id)}><TemplateThumbnail id={template.id} /><span><strong>{template.name || fallbackName}</strong><small>{description}</small></span>{active && <CheckCircle weight="fill" size={18} />}</button>; })}</div><div className="template-library-actions"><span>{preview.cached ? '当前内容的这套模板已生成过，可直接打开。' : `已选择：${selected?.name || '模板'}`}</span><button className="button primary" type="button" disabled={preview.loading} onClick={generate}>{preview.cached ? '打开已有 PDF' : '生成预览 PDF'}<FilePdf size={17} /></button></div></section>}{modalOpen && <PreviewModal preview={preview} onClose={() => setModalOpen(false)} onDownload={() => onDownload?.()} />}</section>;
+  useEffect(() => {
+    if (initialGeneration.current) return;
+    initialGeneration.current = true;
+    void preview.generate();
+  }, [preview.generate]);
+  const hasCurrentPdf = preview.current && preview.blob;
+  const openPreview = () => { setModalOpen(true); if (!hasCurrentPdf && !preview.loading) void preview.generate(); };
+  const status = preview.loading ? '推荐模板正在后台生成 PDF。' : hasCurrentPdf ? '推荐模板 PDF 已生成，可以直接查看和下载。' : preview.error ? `${preview.error} 请重新生成。` : '推荐模板将在后台生成。';
+  const action = preview.loading ? '查看生成进度' : hasCurrentPdf ? '查看并下载 PDF' : preview.error ? '重新生成 PDF' : initialGeneration.current ? '生成更新后的 PDF' : '生成 PDF';
+  return <section className="resume-preview recommended-preview" id="result-preview" aria-label="推荐模板 PDF 预览"><div className="resume-preview-toolbar"><div><p className="result-label">推荐模板</p><h3>PDF 已在后台排版</h3><p>{status}</p></div><button className="button primary" type="button" onClick={openPreview}>{preview.loading && <CircleNotch size={17} className="is-spinning" />}{!preview.loading && <FilePdf size={17} />}{action}</button></div>{modalOpen && <PreviewModal preview={preview} onClose={() => setModalOpen(false)} onDownload={() => onDownload?.()} />}</section>;
 }

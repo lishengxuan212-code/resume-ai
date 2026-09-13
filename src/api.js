@@ -20,7 +20,6 @@ export function createResumeApi(dependencies = {}) {
   let api;
   api = {
     getApiConfig: () => json('/api/config'),
-    getResumeTemplates: () => json('/api/templates'),
     extractResume(file) {
       const body = new FormData();
       body.append('resume', file);
@@ -65,4 +64,4 @@ export function createResumeApi(dependencies = {}) {
   return api;
 }
 
-export const { getApiConfig, getResumeTemplates, extractResume, diagnoseResume, optimizeResume, requestResumePdf, saveResumePdf, downloadResume } = createResumeApi();
+export const { getApiConfig, extractResume, diagnoseResume, optimizeResume, requestResumePdf, saveResumePdf, downloadResume } = createResumeApi();

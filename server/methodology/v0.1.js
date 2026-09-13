@@ -10,6 +10,7 @@ export const METHODOLOGY_RULES = Object.freeze([
   { id: 'E01', stages: ['optimize'], level: 'general', instruction: '内部用 STAR/PAR 梳理背景、个人任务、实际行动与结果或交付物，输出为简洁行动句；缺失环节不虚构。' },
   { id: 'E02', stages: ['diagnose', 'optimize'], level: 'general', instruction: '把空泛职责改写为用户确实做过的对象、步骤、工具、方法和交付物；常见流程只能用于追问，不能推定用户做过。' },
   { id: 'E03', stages: ['diagnose', 'optimize'], level: 'general', instruction: '用具体行动证明能力，删除无证据的自夸和负面自我评价；技能熟练度必须有实际任务或用户确认支持。' },
+  { id: 'E04', stages: ['optimize'], level: 'general', instruction: '同一项目、同一阶段内相互连续的执行动作、方法与该项目可核对结果，合并为一个完整要点：标题概括项目动作，正文交代过程与结果。不同项目、时间段、职责边界，或结果与动作没有来源关联时不得强行合并；不得把相关性改写为未经证实的因果。' },
   { id: 'T01', stages: ['diagnose', 'optimize'], level: 'conditional', when: 'jobDescription', instruction: '仅提取招聘要求中的显式要求，与已确认事实对应；只使用事实支持的岗位关键词，不照抄招聘要求，不补造缺失技能。' },
   { id: 'T02', stages: ['diagnose'], level: 'conditional', when: 'missingTargetRole', instruction: '目标不明确时最多推荐 2—3 个有事实依据的方向并说明缺口，不把推荐当成用户已确认目标。' },
   { id: 'T03', stages: ['diagnose', 'optimize'], level: 'general', instruction: '内容取舍先看目标岗位相关性和个人贡献证据，再看近期性；模块内默认倒序，省略只影响投递版本。' },
