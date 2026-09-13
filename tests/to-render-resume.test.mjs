@@ -46,3 +46,16 @@ test('keeps education out of the personal summary without removing a work audien
   });
   assert.equal(result.summary, '负责大学生用户的活动运营与反馈整理。');
 });
+
+test('does not render a personal summary or section removed from the current resume', () => {
+  const result = toRenderResume({}, {
+    summary: '',
+    sections: [{ heading: '工作经历', entries: [{ title: '产品运营', bullets: [{ title: '活动运营', text: '完成活动复盘。' }] }] }],
+  });
+  assert.equal(result.summary, '');
+  assert.equal(result.sections.length, 1);
+
+  const afterSectionRemoval = toRenderResume({}, { summary: '', sections: [] });
+  assert.equal(afterSectionRemoval.summary, '');
+  assert.deepEqual(afterSectionRemoval.sections, []);
+});

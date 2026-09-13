@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, PencilSimple, Sparkle } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowUpRight, PencilSimple, Sparkle, Trash } from '@phosphor-icons/react';
 import { ResumePreview } from './ResumePreview';
 import { withoutEducationBackground } from '../shared/resume/summary.js';
 
@@ -26,6 +26,10 @@ function SectionEditControl({ editing, label, onToggle }) {
   return <button className="result-section-edit" type="button" aria-label={`${editing ? '完成' : '编辑'}${label}`} onClick={onToggle}><PencilSimple size={14} />{editing ? '完成编辑' : '编辑本部分'}</button>;
 }
 
+function DeleteControl({ label, onDelete }) {
+  return <button className="result-section-delete" type="button" aria-label={`删除${label}`} onClick={onDelete}><Trash size={14} />删除{label}</button>;
+}
+
 function AvatarField({ avatarDataUrl, onAvatarFile, onRemoveAvatar }) {
   const fileInput = useRef(null);
   return <div className="result-avatar-field"><p className="result-label">头像 <span className="optional">选填</span></p><div className="result-avatar-actions">{avatarDataUrl ? <img className="result-avatar-image" src={avatarDataUrl} alt="当前简历头像" /> : <span className="result-avatar-placeholder">头像</span>}<div><button className="result-avatar-button" type="button" onClick={() => fileInput.current?.click()}>{avatarDataUrl ? '更换头像' : '上传头像'}</button>{avatarDataUrl && <button className="result-avatar-remove" type="button" onClick={onRemoveAvatar}>移除</button>}</div></div><input ref={fileInput} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={event => { const file = event.target.files?.[0]; if (file) void onAvatarFile(file); event.target.value = ''; }} /></div>;
@@ -48,6 +52,8 @@ export function ResultPage({ facts, resume, busy, downloading, status, statusTex
   const updateSection = (sectionIndex, patch) => onResume({ ...resume, sections: resume.sections.map((section, index) => index === sectionIndex ? { ...section, ...patch } : section) });
   const updateEntry = (sectionIndex, entryIndex, patch) => updateSection(sectionIndex, { entries: resume.sections[sectionIndex].entries.map((entry, index) => index === entryIndex ? { ...entry, ...patch } : entry) });
   const updateBullet = (sectionIndex, entryIndex, bulletIndex, patch) => updateEntry(sectionIndex, entryIndex, { bullets: resume.sections[sectionIndex].entries[entryIndex].bullets.map((bullet, index) => index === bulletIndex ? { ...bullet, ...patch } : bullet) });
+  const removeSummary = () => onResume({ ...resume, summary: '' });
+  const removeSection = sectionIndex => onResume({ ...resume, sections: resume.sections.filter((_, index) => index !== sectionIndex) });
   return <div className="review-page result-page">
     <header className="review-topbar"><div className="review-brand"><span className="wordmark">简历</span><span className="breadcrumb-divider">/</span><span>优化结果</span></div><button className="back-link" type="button" onClick={onBack}><ArrowLeft size={17} />返回修改材料</button></header>
     <div className="review-intro"><div><p className="eyebrow">让每一段经历，都有清晰的重点</p><h1 ref={heading} tabIndex={-1}>你的优化简历</h1><p>内容已按“标题—内容”重新组织；你可以在任一模块直接进入编辑，再下载 PDF。</p></div><div className="result-intro-actions"><div className="review-file result-badge"><Sparkle size={22} /><span>目标岗位 · {resume.targetRole}</span></div><button className="result-edit-toggle" type="button" aria-pressed={editing} onClick={toggleEditing}><PencilSimple size={16} />{editing ? '完成编辑' : '编辑简历内容'}</button></div></div>
@@ -64,12 +70,12 @@ export function ResultPage({ facts, resume, busy, downloading, status, statusTex
               <div><p className="result-label">目标岗位</p>{editing ? <input className="result-basic-input" value={resume.targetRole} maxLength={200} aria-label="编辑目标岗位" onChange={event => onResume({ ...resume, targetRole: event.target.value })} /> : <p>{resume.targetRole}</p>}</div>
             </div>
           </section>
-          {(summary || editing) && <section className="review-section" id="result-summary"><div className="review-section-heading"><h2>个人概述</h2><div className="result-section-actions"><span>核心定位</span><SectionEditControl editing={editing} label="个人概述" onToggle={toggleEditing} /></div></div>{editing ? <AutoTextarea className="result-inline-textarea result-summary-editor" value={summary} maxLength={1000} label="编辑个人概述" onChange={nextSummary => onResume({ ...resume, summary: nextSummary })} /> : <p className="result-summary">{summary}</p>}</section>}
+          {(summary || editing) && <section className="review-section" id="result-summary"><div className="review-section-heading"><h2>个人概述</h2><div className="result-section-actions"><span>核心定位</span><SectionEditControl editing={editing} label="个人概述" onToggle={toggleEditing} />{editing && <DeleteControl label="个人概述" onDelete={removeSummary} />}</div></div>{editing ? <AutoTextarea className="result-inline-textarea result-summary-editor" value={summary} maxLength={1000} label="编辑个人概述" onChange={nextSummary => onResume({ ...resume, summary: nextSummary })} /> : <p className="result-summary">{summary}</p>}</section>}
           {resume.sections.map((section, sectionIndex) => {
             const sectionHeading = canonicalHeading(section.heading);
             const isSkillSection = section.type === 'skills' || sectionHeading === '技能';
             return <section className="review-section result-resume-section" id={`result-section-${sectionIndex}`} key={`${section.heading}-${sectionIndex}`}>
-              <div className="review-section-heading">{editing && !isSkillSection ? <input className="result-section-title-input" value={section.heading} maxLength={200} aria-label={`编辑模块标题 ${sectionIndex + 1}`} onChange={event => updateSection(sectionIndex, { heading: event.target.value })} /> : <h2>{sectionHeading}</h2>}<div className="result-section-actions"><span>{section.entries.length} 段内容</span><SectionEditControl editing={editing} label={sectionHeading} onToggle={toggleEditing} /></div></div>
+              <div className="review-section-heading">{editing && !isSkillSection ? <input className="result-section-title-input" value={section.heading} maxLength={200} aria-label={`编辑模块标题 ${sectionIndex + 1}`} onChange={event => updateSection(sectionIndex, { heading: event.target.value })} /> : <h2>{sectionHeading}</h2>}<div className="result-section-actions"><span>{section.entries.length} 段内容</span><SectionEditControl editing={editing} label={sectionHeading} onToggle={toggleEditing} />{editing && <DeleteControl label={sectionHeading} onDelete={() => removeSection(sectionIndex)} />}</div></div>
               {section.entries.map((entry, entryIndex) => {
                 const entryTitle = isSkillSection && genericSkillTitle(entry.title) ? '' : entry.title;
                 const hasHeader = editing || entryTitle || entry.organization || entry.dates;
