@@ -131,6 +131,15 @@ test("exports long reviewed content across pages without throwing", async () => 
   assert.match(pages.at(-1), /项目推进 3/);
 });
 
+test('wraps a long Chinese phrase without adding a renderer hyphen', async () => {
+  const exportPdf = await getExportPdf();
+  const wrappedResume = structuredClone(resume);
+  wrappedResume.sections[0].entries[0].bullets[0].text = '透明奖池上线期间产品营收提升20%，活动付费率8%，复购率40%。'.repeat(5);
+  const text = await extractText(await exportPdf({ facts, resume: wrappedResume }));
+  assert.match(text.replace(/\s/g, ''), /透明奖池上线期间产品营收提升20%/);
+  assert.doesNotMatch(text, /上线期-\s*间/);
+});
+
 test('uses the optional local avatar and normalizes extraction-only Chinese gaps', async () => {
   const exportPdf = await getExportPdf();
   const avatarDataUrl = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDyeiiigD//2Q==';

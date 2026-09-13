@@ -158,7 +158,11 @@ export function validateOptimizeInput(value) {
       diagnosis = { methodologyVersion: checked.methodologyVersion, findings: checked.findings, questions: checked.questions, canOptimizeDirectly: true };
     } catch { fail(); }
   }
-  return { facts: appendAnswerSources(cleanFacts, answers), targetRole: value.targetRole.trim(), jobDescription: jobDescription.trim(), answers, skipQuestions: Boolean(value.skipQuestions), ruleIds: selectMethodologyRules({ stage: 'optimize', targetRole: value.targetRole, jobDescription }).map(rule => rule.id), ...(diagnosis ? { diagnosis } : {}) };
+  const suggestedAnswerIds = diagnosis
+    ? diagnosis.questions.filter(question => answers.some(answer => answer.questionId === question.id && answer.answer === question.suggestedRewrite.trim())).map(question => question.id)
+    : [];
+  const factualAnswers = answers.filter(answer => !suggestedAnswerIds.includes(answer.questionId));
+  return { facts: appendAnswerSources(cleanFacts, factualAnswers), targetRole: value.targetRole.trim(), jobDescription: jobDescription.trim(), answers, skipQuestions: Boolean(value.skipQuestions), ruleIds: selectMethodologyRules({ stage: 'optimize', targetRole: value.targetRole, jobDescription }).map(rule => rule.id), ...(diagnosis ? { diagnosis } : {}), ...(suggestedAnswerIds.length ? { suggestedAnswerIds } : {}) };
 }
 
 export function validateDiagnosisInput(value) {

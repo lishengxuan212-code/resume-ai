@@ -26,11 +26,9 @@ export function registerResumeFonts() {
   Font.register({ family: 'ResumeSongti', src: NOTO_SERIF_SC_BOLD, fontWeight: 700 });
   Font.register({ family: 'ResumeReferenceSans', src: NOTO_SANS_SC, fontWeight: 400 });
   Font.register({ family: 'ResumeReferenceSans', src: NOTO_SANS_SC_BOLD, fontWeight: 700 });
-  // React PDF otherwise treats a continuous Chinese phrase as one unbreakable
-  // word. Keep Latin and numeric tokens intact while allowing a natural CJK
-  // line break between adjacent Chinese characters.
-  Font.registerHyphenationCallback(word => word
-    .split(/(?<=\p{Script=Han})|(?=\p{Script=Han})/u)
-    .filter(Boolean));
+  // React PDF writes a literal hyphen when it breaks one of the fragments
+  // returned by a hyphenation callback. We pre-wrap Chinese display text
+  // instead, so only genuine source hyphens can appear in the PDF.
+  Font.registerHyphenationCallback(word => [word]);
   registered = true;
 }

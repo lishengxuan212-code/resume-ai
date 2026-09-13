@@ -6,11 +6,12 @@ import { MAX_UPLOAD_BYTES } from "./document-validation.js";
 import { createProvider } from "./providers/index.js";
 import { exportPdf } from "./export-pdf.js";
 import { validateDiagnosisInput, validateOptimizedResume, validateOptimizeInput } from './resume-validation.js';
-import { safeProviderError } from "./provider-error.js";
+import { ProviderError, safeProviderError } from "./provider-error.js";
 import { validateDiagnosis } from './diagnosis-validation.js';
 import { METHODOLOGY_VERSION } from './methodology/index.js';
 import { getResumeTemplate, listResumeTemplates } from './render/registry.js';
 import { normalizeExportInput } from './export-input.js';
+import { buildConservativeResume } from './conservative-resume.js';
 
 const PROVIDERS = new Set(["openai", "deepseek", "qwen"]);
 
@@ -18,6 +19,14 @@ function validateExportInput(value) {
   const templateId = value?.templateId === undefined ? 'recommended' : value.templateId;
   if (typeof templateId !== 'string' || !getResumeTemplate(templateId)) throw new AppError(400, 'template_invalid', '请选择可用的简历模板。');
   return { ...normalizeExportInput(value), templateId };
+}
+
+function currentContentFallback(input, config) {
+  const provider = config?.provider ?? 'fallback';
+  const model = config?.model ?? 'fallback';
+  const fallback = validateOptimizedResume(buildConservativeResume(input), input.facts, provider, model, { ruleIds: input.ruleIds, diagnosis: input.diagnosis, answers: input.answers, userConfirmedEdits: true });
+  const totalBullets = fallback.sections.reduce((total, section) => total + section.entries.reduce((entryTotal, entry) => entryTotal + entry.bullets.length, 0), 0);
+  return { ...fallback, quality: { checked: true, substantiveChange: false, sourceSimilarity: 1, exactCopyCount: 0, totalBullets, reason: 'current_content_fallback' } };
 }
 
 export function createApp({ config, configError, fetchImpl, services } = {}) {
@@ -41,9 +50,7 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
         methodologyVersion: METHODOLOGY_VERSION,
         ...(config.providers?.filter((item) => item.configured).length > 1 ? { fallbackProviders: config.providers.filter((item) => item.configured).map((item) => ({ provider: item.provider, model: item.model })) } : {}),
       });
-    } catch (error) {
-      next(error);
-    }
+    } catch (error) { next(error); }
   });
 
   app.get('/api/templates', (request, response) => {
@@ -58,9 +65,7 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
         throw new AppError(400, "document_missing", "请通过 resume 字段上传简历文件");
       }
       response.json(await extractDocument(request.file));
-    } catch (error) {
-      next(error);
-    }
+    } catch (error) { next(error); }
   });
 
   app.post('/api/diagnose', express.json({ limit: '4mb' }), async (request, response, next) => {
@@ -95,9 +100,23 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
       } catch (error) {
         throw safeProviderError(error);
       }
-      const resume = validateOptimizedResume(generated, input.facts, services?.optimizeResume ? config.provider : generated.provider ?? config.provider, services?.optimizeResume ? config.model : generated.model ?? config.model, { ruleIds: input.ruleIds, diagnosis: input.diagnosis, answers: input.answers });
+      let resume;
+      try {
+        resume = validateOptimizedResume(generated, input.facts, services?.optimizeResume ? config.provider : generated.provider ?? config.provider, services?.optimizeResume ? config.model : generated.model ?? config.model, { ruleIds: input.ruleIds, diagnosis: input.diagnosis, answers: input.answers });
+      } catch {
+        throw new ProviderError('invalid_result');
+      }
       response.json({ resume, facts: input.facts });
     } catch (error) {
+      const safeError = safeProviderError(error);
+      if (safeError.reason === 'invalid_result') {
+        try {
+          const input = validateOptimizeInput(request.body);
+          return response.json({ resume: currentContentFallback(input, config), facts: input.facts });
+        } catch (fallbackError) {
+          return next(fallbackError);
+        }
+      }
       next(error);
     }
   });

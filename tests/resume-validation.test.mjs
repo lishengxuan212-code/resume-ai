@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateOptimizedResume } from "../server/resume-validation.js";
+import { validateOptimizedResume, validateOptimizeInput } from "../server/resume-validation.js";
 import { AppError } from "../server/errors.js";
 
 const facts = { sourceBlocks: [{ id: "p1-b1", text: "实习：负责用户访谈" }] };
@@ -132,6 +132,15 @@ test('education may omit bullets when no coursework, award or project fact exist
   const educationFacts = { sourceBlocks: [{ id: 'education', text: '示例大学 信息管理 本科 2017.09-2021.06' }] };
   const output = { methodologyVersion: '0.1', summary: '', targetRole: '产品运营', sections: [{ heading: '教育经历', entries: [{ title: '信息管理 本科', organization: '示例大学', dates: '2017.09-2021.06', bullets: [] }] }], omissions: [], warnings: [] };
   assert.equal(validateOptimizedResume(output, educationFacts, 'test', 'test').sections[0].entries[0].bullets.length, 0);
+});
+
+test('a selected diagnosis suggestion remains an editorial direction instead of a new fact source', () => {
+  const sourceFacts = { name: '', contact: '', education: [], experiences: [], skills: [], warnings: [], sourceBlocks: [{ id: 'b1', text: '负责用户访谈并整理反馈。' }] };
+  const diagnosis = { methodologyVersion: '0.1', findings: [], questions: [{ id: 'q1', question: '如何呈现访谈结果？', reason: '让成果更清楚', suggestedRewrite: '围绕用户反馈组织后续需求。', sourceIds: ['b1'], ruleIds: ['E02'] }], canOptimizeDirectly: true };
+  const result = validateOptimizeInput({ facts: sourceFacts, targetRole: '产品助理', diagnosis, answers: [{ questionId: 'q1', answer: '围绕用户反馈组织后续需求。' }] });
+  assert.deepEqual(result.suggestedAnswerIds, ['q1']);
+  assert.deepEqual(result.answers, [{ questionId: 'q1', answer: '围绕用户反馈组织后续需求。' }]);
+  assert.deepEqual(result.facts.sourceBlocks.map(block => block.id), ['b1']);
 });
 
 test('keeps an explicit section type when a user-facing heading is renamed', () => {

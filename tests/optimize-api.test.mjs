@@ -156,12 +156,14 @@ for (const [code, message] of [['EACCES', /外网连接.*拒绝/], ['ENOTFOUND',
   });
 }
 
-test("injected output still rejects nonexistent sources", async () => {
+test("invalid injected output falls back to current reviewed content", async () => {
   const invalid = structuredClone(resume);
   invalid.sections[0].entries[0].bullets[0].sourceIds = ["unknown"];
   const result = await post({ facts, targetRole: "产品助理" }, { services: { optimizeResume: async () => invalid } });
-  assert.equal(result.status, 502);
-  assert.deepEqual(JSON.parse(result.text), providerError);
+  assert.equal(result.status, 200);
+  const body = JSON.parse(result.text);
+  assert.equal(body.resume.quality.reason, 'current_content_fallback');
+  assert.equal(body.resume.sections[0].entries[0].bullets[0].text, '负责用户访谈');
 });
 
 test("injected service exceptions receive the same safe provider error", async () => {

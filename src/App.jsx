@@ -4,15 +4,18 @@ import '@fontsource/noto-serif-sc/400.css';
 import { Modal } from './Modal';
 import { validateFile, fileSize } from './intake';
 import { getApiConfig, extractResume, diagnoseResume, optimizeResume, saveResumePdf, downloadResume } from './api';
-import { draftToFacts, factsToDraft, prepareReviewedFacts, updateReviewedEntry, removeReviewedEntry, updateReviewedSkills } from './resume-state';
+import { prepareReviewedFacts, updateReviewedEntry, removeReviewedEntry, updateReviewedSkills } from './resume-state';
 import { ReviewPage } from './ReviewPage';
-import { RequiredMark } from './ReadableEditor';
 import { DiagnosisPage } from './DiagnosisPage';
 import { LoadingOverlay } from './LoadingOverlay';
 import { ResultPage } from './ResultPage';
 import { makeAvatarDataUrl, makeAvatarDataUrlFromSource } from './avatar';
 
-const emptyDraft = { name: '', contact: '', school: '', major: '', role: '', experience: '' };
+const emptyOnlineFacts = () => ({
+  name: '', contact: '', education: [],
+  experiences: [{ title: '', organization: '', dates: '', description: '', sourceIds: [] }],
+  skills: [], warnings: [], sourceBlocks: [],
+});
 export function App() {
   const inputRef = useRef(null);
   const dragDepth = useRef(0);
@@ -22,7 +25,6 @@ export function App() {
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [panel, setPanel] = useState(null);
-  const [draft, setDraft] = useState(emptyDraft);
   const [facts, setFacts] = useState(null);
   const [targetRole, setTargetRole] = useState('');
   const [jobDescription, setJobDescription] = useState('');
@@ -73,7 +75,7 @@ export function App() {
   function saveFacts() {
     try {
       const next = prepareReviewedFacts(facts);
-      setFacts(next); setTargetRole(targetRole.trim()); setDraft(factsToDraft({ ...next, targetRole })); setError(''); setStatus('reviewing'); setNotice('事实修改已保存在当前页面。');
+      setFacts(next); setTargetRole(targetRole.trim()); setError(''); setStatus('reviewing'); setNotice('事实修改已保存在当前页面。');
       return next;
     } catch (issue) { fail(issue); return null; }
   }
@@ -119,7 +121,7 @@ export function App() {
     finally { operation.current = false; setDownloading(false); }
   }
   const resumePanel = () => setPanel(resume ? 'result' : facts ? 'review' : 'processing');
-  const changeDraft = e => setDraft({ ...draft, [e.target.name]: e.target.value });
+  const beginOnlineReview = () => { setFile(null); beginReview(emptyOnlineFacts(), ''); };
   const loading = busy ? <LoadingOverlay key={downloading ? 'downloading' : status} stage={downloading ? 'downloading' : status} /> : null;
 
   const fileInput = (<input className="visually-hidden" type="file" accept=".pdf,.docx" ref={inputRef} tabIndex={-1} disabled={busy} aria-label="选择简历文件" onChange={e => { if (e.target.files?.[0]) void selectFile(e.target.files[0]); e.target.value = ''; }} />);
@@ -155,7 +157,7 @@ export function App() {
           <button className="button primary upload-button" type="button" onClick={chooseFile} disabled={busy}>{file ? '更换文件' : '上传简历'}</button>
         </div>
         <p className={status === 'idle' || panel ? 'visually-hidden' : status === 'error' ? 'error' : 'processing-status'} aria-live="polite" aria-atomic="true">{statusText}</p>
-        <button className="button secondary fill-button" type="button" disabled={busy && !facts && !file} onClick={facts || file && busy ? resumePanel : () => setPanel('fill')}>{resume ? '查看优化结果' : facts ? '继续核对我的材料' : busy ? '查看处理进度' : '没有简历？在线填写'}</button>
+        <button className="button secondary fill-button" type="button" disabled={busy && !facts && !file} onClick={facts || file && busy ? resumePanel : beginOnlineReview}>{resume ? '查看优化结果' : facts ? '继续核对我的材料' : busy ? '查看处理进度' : '没有简历？在线填写'}</button>
         <p className="registration-note">首次修改与下载，无需注册</p>
       </div>
     </main>
@@ -167,18 +169,6 @@ export function App() {
       <p className={status === 'error' ? 'error' : 'processing-status'} aria-live="polite" aria-atomic="true">{statusText}</p>
       <p className="preview-note">支持 PDF、DOCX，最大 10 MB，PDF 最多 10 页。扫描型 PDF 暂不支持，请使用带有可选择文字的文件。</p>
       <button className="button secondary full" disabled={busy} onClick={chooseFile}>重新选择</button>
-    </Modal>}
-
-    {panel === 'fill' && <Modal title="从你的经历开始" onClose={close}>
-      <p className="modal-lead">不必写得专业，先告诉我们你做过什么。</p>
-      <form onSubmit={e => { e.preventDefault(); setFile(null); beginReview(draftToFacts(draft), draft.role.trim()); }}>
-        <div className="field-row"><label className="field">姓名<RequiredMark /><input name="name" value={draft.name} onChange={changeDraft} placeholder="你的姓名" autoComplete="name" maxLength={40} required /></label><label className="field">学校<input name="school" value={draft.school} onChange={changeDraft} placeholder="你的学校（选填）" maxLength={80} /></label></div>
-        <label className="field">联系方式 <span className="optional">选填</span><input name="contact" value={draft.contact} onChange={changeDraft} placeholder="手机号或邮箱" maxLength={200} /></label>
-        <div className="field-row"><label className="field">专业 <span className="optional">选填</span><input name="major" value={draft.major} onChange={changeDraft} placeholder="所学专业" maxLength={80} /></label><label className="field">目标岗位 <span className="optional">选填</span><input name="role" value={draft.role} onChange={changeDraft} placeholder="核对材料时也可以补充" maxLength={200} /></label></div>
-        <label className="field">一段值得讲述的经历<RequiredMark /><textarea name="experience" value={draft.experience} onChange={changeDraft} placeholder="实习、课程项目、社团或兼职都可以。你负责什么，具体做过哪些事？" rows={5} maxLength={4000} required /></label>
-        <p className="preview-note">内容仅保留在本次页面中，刷新页面将清空。核对事实后，再由你决定是否开始 AI 优化。</p>
-        <button className="button primary full" type="submit">核对填写内容</button>
-      </form>
     </Modal>}
 
     {loading}
