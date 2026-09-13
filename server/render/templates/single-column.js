@@ -46,9 +46,10 @@ function buildStyles(variant) {
 
 function Bullet({ bullet, skills, styles }) {
   if (skills) return h(Text, { style: styles.skill, key: bullet.id, wrap: true }, h(Text, { style: styles.bulletTitle }, `${bullet.title}：`), bullet.text);
+  const number = bullet.number ?? 1;
   return h(View, { style: styles.bullet, key: bullet.id, wrap: true },
-    h(Text, { style: styles.bulletTitle }, bullet.title),
-    h(Text, { style: styles.bulletBody, wrap: true }, `·　${bullet.text}`),
+    h(Text, { style: styles.bulletTitle }, `${number}. ${bullet.title}`),
+    h(Text, { style: styles.bulletBody, wrap: true }, bullet.text),
   );
 }
 
@@ -59,14 +60,14 @@ function ResumeEntry({ entry, skills, styles, separated }) {
       entry.organization ? h(Text, { style: styles.organization, wrap: true }, entry.organization) : null,
       entry.period ? h(Text, { style: styles.period }, entry.period) : null,
     ) : null,
-    ...entry.bullets.map(bullet => h(Bullet, { bullet, skills, styles, key: bullet.id })),
+    ...entry.bullets.map((bullet, index) => h(Bullet, { bullet: { ...bullet, number: index + 1 }, skills, styles, key: bullet.id })),
   );
 }
 
 function ResumeSection({ section, styles }) {
   const skills = section.type === 'skills';
   return h(View, { style: styles.section, key: section.id, wrap: true },
-    h(Text, { style: styles.sectionTitle, minPresenceAhead: 34 }, section.title),
+    h(Text, { style: styles.sectionTitle, minPresenceAhead: 96 }, section.title),
     ...section.items.map((entry, index) => h(ResumeEntry, { entry, skills, styles, separated: !skills && index > 0, key: entry.id })),
   );
 }
@@ -74,7 +75,7 @@ function ResumeSection({ section, styles }) {
 function Education({ items, styles }) {
   if (!items.length) return null;
   return h(View, { style: styles.education, wrap: true },
-    h(Text, { style: styles.educationTitle, minPresenceAhead: 30 }, '教育背景'),
+    h(Text, { style: styles.educationTitle, minPresenceAhead: 96 }, '教育背景'),
     ...items.map(item => h(View, { style: styles.educationRow, key: item.id, wrap: true },
       h(Text, { style: styles.educationSchool }, [item.school, item.major].filter(Boolean).join(' — ')),
       h(Text, { style: styles.educationDegree }, item.degree),
@@ -100,7 +101,7 @@ export function SingleColumnTemplate({ resume, variant = 'recommended' }) {
         index === 0 && resume.basics.avatarDataUrl ? h(Image, { style: styles.avatar, src: resume.basics.avatarDataUrl }) : null,
       ),
       index === 0 ? h(Education, { items: resume.basics.education, styles }) : null,
-      index === 0 && resume.summary ? h(View, { style: styles.section }, h(Text, { style: styles.sectionTitle, minPresenceAhead: 34 }, '个人概述'), h(Text, { style: styles.summary, wrap: true }, resume.summary)) : null,
+      index === 0 && resume.summary ? h(View, { style: styles.section }, h(Text, { style: styles.sectionTitle, minPresenceAhead: 96 }, '个人概述'), h(Text, { style: styles.summary, wrap: true }, resume.summary)) : null,
       ...sections.map(section => h(ResumeSection, { section, styles, key: section.id })),
       settings.pageNumbers ? h(Text, { style: styles.footer, fixed: true, render: ({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}` }) : null,
     )),

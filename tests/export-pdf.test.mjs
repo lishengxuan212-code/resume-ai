@@ -69,6 +69,36 @@ test('the enabled recommended template preserves the canonical resume content', 
   assert.match(text, /用户访谈/);
 });
 
+test('numbers non-skill titles and keeps a later section heading with its first content', async () => {
+  const exportPdf = await getExportPdf();
+  const numberedResume = structuredClone(resume);
+  numberedResume.sections = [{
+    heading: '项目经历',
+    entries: Array.from({ length: 8 }, (_, entryIndex) => ({
+      title: `项目 ${entryIndex + 1}`,
+      organization: '示例公司',
+      dates: '2025.01 - 2025.06',
+      bullets: Array.from({ length: 3 }, (_, bulletIndex) => ({ title: `项目推进 ${bulletIndex + 1}`, text: '完成用户调研、需求分析和跨团队协作，持续推动产品方案落地。' })),
+    })),
+  }, {
+    type: 'skills',
+    heading: '技能',
+    entries: [{ title: '', organization: '', dates: '', bullets: [{ title: '付费与活动玩法', text: '具备活动设计和复盘经验。' }] }],
+  }];
+  numberedResume.sections[0].entries[0].bullets = [
+    { title: '用户访谈', text: '负责产品用户访谈。' },
+    { title: '需求梳理', text: '整理访谈结论并跟进需求。' },
+  ];
+
+  const pages = await extractPageTexts(await exportPdf({ facts, resume: numberedResume }));
+  const text = pages.join(' ');
+  assert.match(text, /1\.\s*用户访谈\s*负责产品用户访谈/);
+  assert.match(text, /2\.\s*需求梳理\s*整理访谈结论并跟进需求/);
+  const skillsPage = pages.find(page => page.includes('技能'));
+  assert.ok(skillsPage, '技能模块必须被渲染');
+  assert.match(skillsPage, /付费与活动玩法/);
+});
+
 test('uses the reference layout with top education and separators between experiences', async () => {
   const exportPdf = await getExportPdf();
   const pdf = await exportPdf({
