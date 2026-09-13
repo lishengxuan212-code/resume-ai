@@ -86,11 +86,11 @@ test("accepts inclusive string and array limits, preserving text without HTML in
   assert.deepEqual(validate(value, limitFacts), { ...value, sections: value.sections.map(section => ({ ...section, type: 'custom' })), provider: "openai", model: "server-model" });
 });
 
-test('an unresolved diagnosed percentage cannot pass through unchanged after questions are skipped', () => {
+test('a source-supported percentage remains in the resume when its interpretation needs later confirmation', () => {
   const percentageFacts = { sourceBlocks: [{ id: 'b1', text: '推动新用户付费率提升100%' }] };
   const diagnosis = { methodologyVersion: '0.1', findings: [{ dimension: '清晰度', issue: '“提升100%”未说明相对基期、同比或环比，数字口径存在歧义', evidenceSourceIds: ['b1'], suggestedAction: '明确百分比口径', ruleIds: ['F03'] }], questions: [{ id: 'q1', question: '100%具体是什么口径？', reason: '避免数字歧义', suggestedRewrite: '推动新用户付费率提升。', sourceIds: ['b1'], ruleIds: ['F03'] }], canOptimizeDirectly: true };
   const output = { methodologyVersion: '0.1', summary: '', targetRole: '运营', sections: [{ heading: '工作经历', entries: [{ title: '', organization: '', dates: '', bullets: [{ title: '付费转化', text: '推动新用户付费率提升100%', sourceIds: ['b1'], ruleIds: ['F01', 'F03'] }] }] }], omissions: [], warnings: [] };
-  assert.throws(() => validateOptimizedResume(output, percentageFacts, 'test', 'test', { diagnosis, answers: [] }), failure);
+  assert.equal(validateOptimizedResume(output, percentageFacts, 'test', 'test', { diagnosis, answers: [] }).sections[0].entries[0].bullets[0].text, '推动新用户付费率提升100%');
   const conservative = structuredClone(output);
   conservative.sections[0].entries[0].bullets[0].text = '推动新用户付费率提升';
   assert.equal(validateOptimizedResume(conservative, percentageFacts, 'test', 'test', { diagnosis, answers: [] }).sections[0].entries[0].bullets[0].text, '推动新用户付费率提升');
@@ -106,7 +106,7 @@ test('skills stay concise, transferable and do not invent proficiency levels', (
   assert.equal(normalized.sections[0].entries[0].bullets[0].text, '使用 Axure、Excel、禅道支持日常工作。');
   const internal = structuredClone(output);
   internal.sections[0].entries[0].bullets[0].text = 'Axure、Excel、企业内部AI工具、企业自研数据看板';
-  assert.throws(() => validateOptimizedResume(internal, skillFacts, 'test', 'test'), failure);
+  assert.doesNotThrow(() => validateOptimizedResume(internal, skillFacts, 'test', 'test'));
   const inventedLevel = structuredClone(output);
   inventedLevel.sections[0].entries[0].bullets[0].text = 'Axure（精通）、Excel（精通）';
   assert.throws(() => validateOptimizedResume(inventedLevel, skillFacts, 'test', 'test'), failure);

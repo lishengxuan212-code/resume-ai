@@ -64,14 +64,14 @@ test("optimize uses the default provider through injected fetch without exposing
   assert.ok(!result.text.includes(key));
 });
 
-test('skip-question optimization returns the validated factual fallback after invalid provider output', async () => {
+test('optimization returns the validated current-content fallback after invalid provider output', async () => {
   const fallbackFacts = {
     ...facts,
     experiences: [{ title: '产品运营实习生', organization: '知行科技', dates: '2025.03-2025.08', description: '用户访谈：参与用户访谈并整理反馈。', sourceIds: ['p1-b1'] }],
     sourceBlocks: [{ id: 'p1-b1', text: '知行科技 产品运营实习生 2025.03-2025.08。用户访谈：参与用户访谈并整理反馈。', page: 1 }],
   };
   let calls = 0;
-  const result = await post({ facts: fallbackFacts, targetRole: '产品助理', skipQuestions: true }, {
+  const result = await post({ facts: fallbackFacts, targetRole: '产品助理' }, {
     fetchImpl: async () => {
       calls += 1;
       return { ok: true, json: async () => ({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({ summary: 'incomplete' }) }] }] }) };
@@ -80,7 +80,7 @@ test('skip-question optimization returns the validated factual fallback after in
   const body = JSON.parse(result.text);
   assert.equal(result.status, 200);
   assert.equal(calls, 3);
-  assert.equal(body.resume.quality.reason, 'conservative_fallback');
+  assert.equal(body.resume.quality.reason, 'current_content_fallback');
   assert.equal(body.resume.sections[0].entries[0].organization, '知行科技');
 });
 

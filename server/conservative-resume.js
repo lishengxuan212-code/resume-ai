@@ -5,23 +5,21 @@ const sourceIdsFor = (entry, facts) => entry?.sourceIds?.filter(id => facts.sour
   ? entry.sourceIds.filter(id => facts.sourceBlocks.some(block => block.id === id))
   : facts.sourceBlocks.slice(0, 1).map(block => block.id);
 
-function splitDescription(value) {
-  const chunks = clean(value).split(/\n+/).flatMap(line => line.match(/[^。！？；]{1,470}[。！？；]?/gu) ?? []).map(clean).filter(Boolean);
-  return chunks.length ? chunks.slice(0, 8) : [];
-}
-
 function factBullet(text, fallbackTitle, sourceIds, index) {
   const matched = text.match(/^\s*(?:\d+[.、．]\s*)?([^：:]{2,40})[：:]\s*(.+)$/u);
   const title = clean(matched?.[1]) || clean(fallbackTitle) || '已核对经历';
   const body = clean(matched?.[2]) || clean(text);
-  return { title, text: body.slice(0, 500), sourceIds, ruleIds: ['F01'], id: `fallback-bullet-${index + 1}` };
+  return { title, text: body, sourceIds, ruleIds: ['F01'], id: `fallback-bullet-${index + 1}` };
 }
 
 function experienceSection(facts) {
   const entries = (facts.experiences ?? []).flatMap((entry, entryIndex) => {
     const sourceIds = sourceIdsFor(entry, facts);
-    const bullets = splitDescription(entry.description).map((text, bulletIndex) => factBullet(text, entry.title, sourceIds, bulletIndex));
-    return bullets.length ? [{ id: `fallback-experience-${entryIndex + 1}`, title: clean(entry.title), organization: clean(entry.organization), dates: clean(entry.dates), bullets }] : [];
+    const description = clean(entry.description);
+    const bullets = description ? [factBullet(description, entry.title, sourceIds, 0)] : [];
+    return (bullets.length || clean(entry.title) || clean(entry.organization) || clean(entry.dates))
+      ? [{ id: `fallback-experience-${entryIndex + 1}`, title: clean(entry.title), organization: clean(entry.organization), dates: clean(entry.dates), bullets }]
+      : [];
   });
   return entries.length ? { type: 'experience', heading: '工作/实习经历', entries } : null;
 }
@@ -29,7 +27,7 @@ function experienceSection(facts) {
 function sourceSection(facts) {
   const source = facts.sourceBlocks.find(block => clean(block.text));
   if (!source) return null;
-  const bullets = splitDescription(source.text).slice(0, 4).map((text, index) => factBullet(text, '已核对经历', [source.id], index));
+  const bullets = clean(source.text) ? [factBullet(clean(source.text), '已核对经历', [source.id], 0)] : [];
   return bullets.length ? { type: 'custom', heading: '相关经历', entries: [{ id: 'fallback-source-entry', title: '', organization: '', dates: '', bullets }] } : null;
 }
 
@@ -39,7 +37,7 @@ function skillSection(facts) {
     const [label, ...rest] = clean(skill).split(/[：:]/u);
     const title = clean(rest.length ? label : '实践方法');
     const text = clean(rest.length ? rest.join('：') : skill);
-    return title && text ? [{ id: `fallback-skill-${index + 1}`, title, text: text.slice(0, 160), sourceIds, ruleIds: ['F01'] }] : [];
+    return title && text ? [{ id: `fallback-skill-${index + 1}`, title, text, sourceIds, ruleIds: ['F01'] }] : [];
   });
   return bullets.length ? { type: 'skills', heading: '技能', entries: [{ id: 'fallback-skills', title: '', organization: '', dates: '', bullets }] } : null;
 }

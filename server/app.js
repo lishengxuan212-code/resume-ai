@@ -10,39 +10,14 @@ import { safeProviderError } from "./provider-error.js";
 import { validateDiagnosis } from './diagnosis-validation.js';
 import { METHODOLOGY_VERSION } from './methodology/index.js';
 import { getResumeTemplate, listResumeTemplates } from './render/registry.js';
+import { normalizeExportInput } from './export-input.js';
 
 const PROVIDERS = new Set(["openai", "deepseek", "qwen"]);
-const avatarDataUrl = value => typeof value === 'string'
-  && value.length <= 500_000
-  && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
 
 function validateExportInput(value) {
-  const input = validateOptimizeInput({
-    facts: value?.facts,
-    targetRole: value?.resume?.targetRole,
-  });
-  try {
-    // Export is a deliberate user confirmation point. Keep structural and hidden
-    // provenance checks, but do not reject facts the user has directly edited in
-    // the final resume after AI generation.
-    const validated = validateOptimizedResume(value?.resume, input.facts, "export", "export", { userConfirmedEdits: true });
-    const templateId = value?.templateId === undefined ? 'recommended' : value.templateId;
-    if (typeof templateId !== 'string' || !getResumeTemplate(templateId)) throw new AppError(400, 'template_invalid', '请选择可用的简历模板。');
-    const presentation = value?.presentation === undefined ? {} : value.presentation;
-    if (typeof presentation !== 'object' || presentation === null || Array.isArray(presentation)) throw new AppError(400, 'request_invalid', '请提供有效的简历展示设置。');
-    if (presentation.avatarDataUrl !== undefined && !avatarDataUrl(presentation.avatarDataUrl)) throw new AppError(400, 'request_invalid', '头像格式或大小无效，请重新选择图片。');
-    return {
-      facts: input.facts,
-      resume: { summary: validated.summary, targetRole: validated.targetRole, sections: validated.sections },
-      templateId,
-      presentation: { avatarDataUrl: presentation.avatarDataUrl ?? '' },
-    };
-  } catch (error) {
-    if (error instanceof AppError && error.code === "provider_failed") {
-      throw new AppError(400, "request_invalid", "请提供有效的简历事实和优化结果。");
-    }
-    throw error;
-  }
+  const templateId = value?.templateId === undefined ? 'recommended' : value.templateId;
+  if (typeof templateId !== 'string' || !getResumeTemplate(templateId)) throw new AppError(400, 'template_invalid', '请选择可用的简历模板。');
+  return { ...normalizeExportInput(value), templateId };
 }
 
 export function createApp({ config, configError, fetchImpl, services } = {}) {

@@ -105,7 +105,13 @@ for (const [provider, endpoint] of [
       let calls = 0;
       const invalidOutput = ['missing model text', 'invalid model JSON', 'invalid model structure', 'refusal'].includes(label);
       const check = label === 'non-2xx' ? reasonFailure('authentication') : invalidOutput ? reasonFailure('invalid_result') : safeFailure;
-      await assert.rejects(createProvider(config(provider), async () => { calls += 1; return response; }).generateResume(input), check);
+      const adapter = createProvider(config(provider), async () => { calls += 1; return response; });
+      if (invalidOutput) {
+        const result = await adapter.generateResume(input);
+        assert.equal(result.quality.reason, 'current_content_fallback');
+      } else {
+        await assert.rejects(adapter.generateResume(input), check);
+      }
       assert.equal(calls, invalidOutput ? 3 : 1);
     });
   }
@@ -141,7 +147,7 @@ test('optimization prompt closes validated diagnosis findings and keeps skills t
   const diagnosis = { methodologyVersion: '0.1', findings: [{ dimension: '清晰度', issue: '提升100%的口径不明确', evidenceSourceIds: ['p1-b1'], suggestedAction: '确认同比、环比或基期', ruleIds: ['F03'] }], questions: [{ id: 'q1', question: '100%是什么口径？', reason: '消除数字歧义', suggestedRewrite: '推动相关指标改善。', sourceIds: ['p1-b1'], ruleIds: ['F03'] }], canOptimizeDirectly: true };
   const messages = buildResumePrompt({ ...input, diagnosis, skipQuestions: true });
   assert.match(messages[0].content, /必须逐条处理 findings/);
-  assert.match(messages[0].content, /企业内部 AI 工具、自研数据看板等不可迁移的内部工具默认省略/);
+  assert.match(messages[0].content, /不得删除用户提供的独立技能内容/);
   assert.match(messages[0].content, /不能从“使用过”推断/);
   assert.deepEqual(JSON.parse(messages[1].content).diagnosis, diagnosis);
 });
@@ -165,11 +171,12 @@ test('the three-attempt budget is shared across provider fallback', async () => 
     if (calls.length === 1) return { ok: false, status: 401 };
     return { ok: true, json: async () => chatOutput(JSON.stringify({ summary: 'incomplete' })) };
   });
-  await assert.rejects(adapter.generateResume(input), reasonFailure('invalid_result'));
+  const result = await adapter.generateResume(input);
   assert.equal(calls.length, 3, 'initial call plus two retries is the overall request budget');
+  assert.equal(result.quality.reason, 'current_content_fallback');
 });
 
-test('skipping questions returns a fact-only resume after three invalid model outputs', async () => {
+test('invalid model output returns a fact-preserving resume even when questions were not skipped', async () => {
   const fallbackFacts = {
     sourceBlocks: [{ id: 'p1-b1', text: '知行科技 产品运营实习生 2025.03-2025.08。\n用户访谈：参与用户访谈并整理反馈。' }],
     experiences: [{ title: '产品运营实习生', organization: '知行科技', dates: '2025.03-2025.08', description: '用户访谈：参与用户访谈并整理反馈。', sourceIds: ['p1-b1'] }],
@@ -180,9 +187,9 @@ test('skipping questions returns a fact-only resume after three invalid model ou
     calls += 1;
     return { ok: true, json: async () => chatOutput(JSON.stringify({ summary: 'incomplete' })) };
   });
-  const result = await adapter.generateResume({ facts: fallbackFacts, targetRole: '产品助理', skipQuestions: true });
+  const result = await adapter.generateResume({ facts: fallbackFacts, targetRole: '产品助理' });
   assert.equal(calls, 3);
-  assert.equal(result.quality.reason, 'conservative_fallback');
+  assert.equal(result.quality.reason, 'current_content_fallback');
   assert.equal(result.sections[0].type, 'experience');
   assert.equal(result.sections[0].entries[0].title, '产品运营实习生');
   assert.equal(result.sections[0].entries[0].organization, '知行科技');
@@ -191,20 +198,32 @@ test('skipping questions returns a fact-only resume after three invalid model ou
   assert.equal(result.sections[0].entries[0].bullets[0].text, '参与用户访谈并整理反馈。');
 });
 
-test('quality gate retries a verbatim result once with explicit revision feedback', async () => {
+test('quality inspection preserves a source-faithful result instead of rejecting it', async () => {
   const source = '负责收集团队每周提交的工作记录，按照项目归类进展、风险和待协调事项，整理为团队周报并提交负责人。';
   const qualityFacts = { sourceBlocks: [{ id: 'b1', text: source }] };
   const makeResume = text => ({ methodologyVersion: '0.1', summary: '', targetRole: '运营助理', sections: [{ heading: '项目经历', entries: [{ title: '', organization: '', dates: '', bullets: [{ title: '周报整理', text, sourceIds: ['b1'], ruleIds: ['F01', 'E02'] }] }] }], omissions: [], warnings: [] });
   const bodies = [];
   const adapter = createProvider(config('deepseek'), async (url, options) => {
     bodies.push(JSON.parse(options.body));
-    const output = bodies.length === 1 ? makeResume(source) : makeResume('按项目归类团队工作记录，汇总进展、风险及待协调事项，形成周报提交负责人。');
-    return { ok: true, json: async () => chatOutput(JSON.stringify(output)) };
+    return { ok: true, json: async () => chatOutput(JSON.stringify(makeResume(source))) };
   });
   const result = await adapter.generateResume({ facts: qualityFacts, targetRole: '运营助理' });
-  assert.equal(bodies.length, 2);
-  assert.match(bodies[1].messages[0].content, /上一版与来源原文过于相似/);
-  assert.equal(result.quality.substantiveChange, true);
+  assert.equal(bodies.length, 1);
+  assert.equal(result.quality.substantiveChange, false);
+  assert.equal(result.sections[0].entries[0].bullets[0].text, source);
+});
+
+test('current-content fallback keeps a complete, source-supported metric clause', async () => {
+  const text = '主导 618、双十一、周年庆、双旦、年终消耗等大促活动从方案、资源、配置到复盘的全流程落地；活动期间单日最高收入达平均日收入的 200%，活动充值率超 10%，活动 ARPU 达 ￥30。';
+  const facts = {
+    sourceBlocks: [{ id: 'b1', text }],
+    experiences: [{ title: '产品运营', organization: '示例公司', dates: '2025.01 - 至今', description: text, sourceIds: ['b1'] }],
+    skills: [],
+  };
+  const adapter = createProvider(config('deepseek'), async () => ({ ok: true, json: async () => chatOutput(JSON.stringify({ summary: 'incomplete' })) }));
+  const result = await adapter.generateResume({ facts, targetRole: '产品运营' });
+  assert.equal(result.quality.reason, 'current_content_fallback');
+  assert.equal(result.sections[0].entries[0].bullets[0].text, text);
 });
 
 test('invalid resume structure can recover on either of two automatic retries', async () => {

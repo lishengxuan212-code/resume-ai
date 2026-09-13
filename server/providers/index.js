@@ -1,6 +1,6 @@
 import { AppError } from '../errors.js';
 import { validateDiagnosis } from '../diagnosis-validation.js';
-import { assessOptimizationQuality, QUALITY_RETRY_FEEDBACK } from '../optimization-quality.js';
+import { assessOptimizationQuality } from '../optimization-quality.js';
 import { providerFailed, validateOptimizedResume } from '../resume-validation.js';
 import { generateOpenAI } from './openai.js';
 import { generateCompatibleChat } from './compatible-chat.js';
@@ -18,8 +18,8 @@ export function createProvider(config, fetchImpl = globalThis.fetch) {
   if (!configured.length) throw new AppError(503, 'provider_unconfigured', '当前 AI 服务尚未配置。');
   const call = (settings, input, task) => (settings.provider === 'openai' ? generateOpenAI : generateCompatibleChat)(settings, input, fetchImpl, task);
   const settingsFor = candidate => ({ provider: candidate.provider, model: candidate.model, apiKey: candidate.apiKey, timeoutMs: candidate.timeoutMs });
-  const validateResume = (result, input, settings) => {
-    try { return validateOptimizedResume(result, input.facts, settings.provider, settings.model, { ruleIds: input.ruleIds, diagnosis: input.diagnosis, answers: input.answers }); }
+  const validateResume = (result, input, settings, options = {}) => {
+    try { return validateOptimizedResume(result, input.facts, settings.provider, settings.model, { ruleIds: input.ruleIds, diagnosis: input.diagnosis, answers: input.answers, ...options }); }
     catch { throw new ProviderError('invalid_result'); }
   };
   return {
@@ -68,20 +68,21 @@ export function createProvider(config, fetchImpl = globalThis.fetch) {
               continue;
             }
             const quality = assessOptimizationQuality(validated, input.facts);
-            if (quality.substantiveChange) return { ...validated, quality };
-            if (attempt === MAX_ATTEMPTS - 1) throw new ProviderError('insufficient_optimization');
-            revisionFeedback = QUALITY_RETRY_FEEDBACK;
+            // Similar wording is a review signal, never a reason to strand the
+            // user or delete source-supported achievements. They can edit the
+            // generated resume directly and still receive a PDF.
+            return { ...validated, quality };
           }
         } catch (error) { lastError = safeProviderError(error); }
       }
-      // Skipping questions is an explicit request to continue from reviewed facts.
-      // Preserve genuine provider failures, but do not strand that path when all
-      // three attempts only fail the model's structured-output validation.
-      if (input.skipQuestions && lastError?.reason === 'invalid_result') {
+      // A malformed model response must not block a user from receiving a resume.
+      // Keep provider authentication/network failures visible, but turn repeated
+      // structural failures into a complete, source-preserving current-content draft.
+      if (lastError?.reason === 'invalid_result') {
         const settings = settingsFor(configured[0]);
-        const fallback = validateResume(buildConservativeResume(input), input, settings);
+        const fallback = validateResume(buildConservativeResume(input), input, settings, { userConfirmedEdits: true });
         const totalBullets = fallback.sections.reduce((total, section) => total + section.entries.reduce((count, entry) => count + entry.bullets.length, 0), 0);
-        return { ...fallback, quality: { checked: true, substantiveChange: false, sourceSimilarity: 1, exactCopyCount: 0, totalBullets, reason: 'conservative_fallback' } };
+        return { ...fallback, quality: { checked: true, substantiveChange: false, sourceSimilarity: 1, exactCopyCount: 0, totalBullets, reason: 'current_content_fallback' } };
       }
       throw lastError ?? providerFailed();
     },

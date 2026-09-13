@@ -66,7 +66,7 @@ export function validateOptimizedResume(value, facts, provider, model, options =
   const validSkillPresentation = (output, ids, type) => {
     if (options.userConfirmedEdits) return true;
     if (type !== 'skills') return true;
-    if (output.length > 160 || /企业内部|公司内部|企业自研|内部\s*AI|自研数据看板/i.test(output)) return false;
+    if (output.length > 160) return false;
     const cited = ids.map(id => sources.get(id)).join(' ');
     return [...output.matchAll(/精通|熟练|掌握|擅长/g)].every(match => cited.includes(match[0]));
   };
@@ -102,17 +102,6 @@ export function validateOptimizedResume(value, facts, provider, model, options =
     });
     return { type, heading, entries: type === 'experience' ? recentFirst(entries) : entries };
   });
-  const answeredQuestionIds = new Set((options.answers ?? []).filter(answer => answer?.answer?.trim()).map(answer => answer.questionId));
-  const unresolvedPercentages = (options.diagnosis?.findings ?? []).flatMap(finding => {
-    const diagnosisText = `${finding.issue ?? ''} ${finding.suggestedAction ?? ''}`;
-    if (!/歧义|口径|基期|同比|环比|百分点|绝对增长|翻倍/.test(diagnosisText)) return [];
-    const evidenceIds = new Set(finding.evidenceSourceIds ?? []);
-    const relatedQuestions = (options.diagnosis?.questions ?? []).filter(question => question.sourceIds?.some(id => evidenceIds.has(id)));
-    if (relatedQuestions.some(question => answeredQuestionIds.has(question.id))) return [];
-    return [...diagnosisText.matchAll(/\d+(?:[.,]\d+)*(?:%|％)/g)].map(match => match[0]);
-  });
-  const generatedVisibleText = [value.summary, ...sections.flatMap(section => [section.heading, ...section.entries.flatMap(entry => [entry.title, entry.organization, entry.dates, ...entry.bullets.flatMap(bullet => [bullet.title, bullet.text])])])].join('\n');
-  if (unresolvedPercentages.some(number => generatedVisibleText.includes(number))) fail();
   const omissions = value.omissions === undefined ? [] : value.omissions;
   if (!isList(omissions, 30, false)) fail();
   const cleanOmissions = omissions.map(item => {

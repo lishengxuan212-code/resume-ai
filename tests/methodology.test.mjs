@@ -31,7 +31,7 @@ test('diagnosis proposes a conservative rewrite and generated skill headings are
   assert.match(diagnosisPrompt.sections.find(section => section.id === 'task').content, /用户可以确认的保守、可投递表达/);
   const optimizePrompt = buildPromptSections('optimize', { facts, targetRole: '数据分析', jobDescription: '' });
   assert.match(optimizePrompt.sections.find(section => section.id === 'task').content, /heading 必须固定为“技能”/);
-  assert.match(optimizePrompt.sections.find(section => section.id === 'task').content, /可以删除与目标岗位无关、重复或事实口径不清的材料/);
+  assert.match(optimizePrompt.sections.find(section => section.id === 'task').content, /完整、来源明确的经历、职责、过程和结果必须保留/);
   assert.match(optimizePrompt.sections.find(section => section.id === 'task').content, /同一项目、同一阶段内连续的执行、方法与该项目可核对结果/);
   assert.match(optimizePrompt.sections.find(section => section.id === 'methodology').content, /E04/);
 });
