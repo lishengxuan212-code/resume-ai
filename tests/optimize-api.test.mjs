@@ -7,7 +7,7 @@ const key = "test-only-secret-never-real";
 const config = { provider: "openai", model: "server-model", apiKey: key, configured: true };
 const facts = { name: "张三", contact: "", education: [], experiences: [], skills: [], warnings: [], sourceBlocks: [{ id: "p1-b1", text: "产品实习：负责用户访谈", page: 1 }] };
 const resume = { methodologyVersion: '0.1', summary: "有用户访谈经验", targetRole: "产品助理", sections: [{ type: 'custom', heading: "经历", entries: [{ title: "产品实习", organization: "", dates: "", bullets: [{ title: '用户访谈', text: '开展用户访谈并整理反馈', sourceIds: ['p1-b1'], ruleIds: ['F01', 'E02'] }] }] }], omissions: [], warnings: [] };
-const providerError = { error: { code: "provider_failed", message: "AI 服务暂时无法生成简历，请稍后重试。" } };
+const providerError = { error: { code: "provider_failed", message: "暂时无法完成优化，请稍后重试。" } };
 
 test('a provider deadline returns recoverable 502 JSON', async () => {
   const result = await post({ facts, targetRole: '产品助理' }, {
@@ -38,7 +38,7 @@ test("optimize normalizes injected results with server provenance and strips ext
     services: { optimizeResume: async (input) => { received = input; return { ...resume, provider: "forged", model: "forged", apiKey: key }; } },
   });
   assert.equal(result.status, 200);
-  assert.deepEqual(JSON.parse(result.text), { resume: { ...resume, provider: "openai", model: "server-model" }, facts });
+  assert.deepEqual(JSON.parse(result.text), { resume, facts });
   assert.deepEqual(received, { facts, targetRole: "产品助理", jobDescription: '', answers: [], skipQuestions: false, ruleIds: ['F01', 'F02', 'F03', 'D03', 'E01', 'E02', 'E03', 'E04', 'T03', 'L01', 'L02', 'G01'] });
   assert.ok(!result.text.includes(key));
 });
@@ -60,7 +60,8 @@ test("optimize uses the default provider through injected fetch without exposing
     return { ok: true, json: async () => ({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(resume) }] }] }) };
   } });
   assert.equal(result.status, 200);
-  assert.equal(JSON.parse(result.text).resume.provider, "openai");
+  assert.equal(Object.hasOwn(JSON.parse(result.text).resume, 'provider'), false);
+  assert.equal(Object.hasOwn(JSON.parse(result.text).resume, 'model'), false);
   assert.ok(!result.text.includes(key));
 });
 
@@ -88,7 +89,7 @@ test("unconfigured optimization returns 503 before contacting a provider", async
   let called = false;
   const result = await post({ facts, targetRole: "产品助理" }, { config: { ...config, configured: false }, fetchImpl: async () => { called = true; } });
   assert.equal(result.status, 503);
-  assert.deepEqual(JSON.parse(result.text), { error: { code: "provider_unconfigured", message: "当前 AI 服务尚未配置。" } });
+  assert.deepEqual(JSON.parse(result.text), { error: { code: "provider_unconfigured", message: "当前暂时无法开始优化，请稍后重试。" } });
   assert.equal(called, false);
 });
 
@@ -127,13 +128,13 @@ test("upstream failures do not expose upstream response bodies", async () => {
   const result = await post({ facts, targetRole: "产品助理" }, { fetchImpl: async () => ({ ok: false, status: 401, json: async () => ({ error: key }) }) });
   assert.equal(result.status, 502);
   assert.equal(JSON.parse(result.text).error.code, 'provider_failed');
-  assert.match(JSON.parse(result.text).error.message, /密钥验证失败/);
+  assert.match(JSON.parse(result.text).error.message, /当前配置无法完成优化/);
   assert.ok(!result.text.includes(key));
 });
 
 for (const [status, message] of [
-  [400, /请求参数/], [402, /余额不足/], [403, /调用权限/],
-  [404, /模型或接口不可用/], [429, /频繁|额度/], [503, /服务商暂时不可用/],
+  [400, /当前配置暂时无法完成优化/], [402, /当前配置暂时无法完成优化/], [403, /当前配置暂时无法完成优化/],
+  [404, /当前配置暂时无法完成优化/], [429, /当前请求较多/], [503, /当前操作暂时不可用/],
 ]) {
   test(`provider HTTP ${status} exposes an actionable fixed message without upstream content`, async () => {
     const result = await post({ facts, targetRole: '产品助理' }, {
@@ -145,7 +146,7 @@ for (const [status, message] of [
   });
 }
 
-for (const [code, message] of [['EACCES', /外网连接.*拒绝/], ['ENOTFOUND', /无法连接/]]) {
+for (const [code, message] of [['EACCES', /当前网络环境无法完成优化/], ['ENOTFOUND', /当前网络无法完成优化/]]) {
   test(`provider network ${code} survives adapter and route error handling`, async () => {
     const result = await post({ facts, targetRole: '产品助理' }, {
       fetchImpl: async () => { throw new TypeError(key, { cause: Object.assign(new Error(key), { code }) }); },

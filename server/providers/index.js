@@ -15,7 +15,7 @@ export function createProvider(config, fetchImpl = globalThis.fetch) {
   const candidates = config?.providers ?? [config];
   if (!Array.isArray(candidates) || candidates.some(candidate => !PROVIDERS.has(candidate?.provider))) throw new AppError(503, 'provider_invalid', 'Unsupported AI provider');
   const configured = candidates.filter(candidate => candidate.configured && candidate.apiKey && candidate.model);
-  if (!configured.length) throw new AppError(503, 'provider_unconfigured', '当前 AI 服务尚未配置。');
+  if (!configured.length) throw new AppError(503, 'provider_unconfigured', '当前暂时无法开始优化，请稍后重试。');
   const call = (settings, input, task) => (settings.provider === 'openai' ? generateOpenAI : generateCompatibleChat)(settings, input, fetchImpl, task);
   const settingsFor = candidate => ({ provider: candidate.provider, model: candidate.model, apiKey: candidate.apiKey, timeoutMs: candidate.timeoutMs });
   const validateResume = (result, input, settings, options = {}) => {

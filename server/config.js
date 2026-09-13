@@ -10,7 +10,7 @@ const PROVIDERS = {
 export function readConfig(env) {
   const requested = (env.AI_PROVIDERS ?? env.AI_PROVIDER ?? "openai").split(",").map((name) => name.trim()).filter(Boolean);
   if (requested.length === 0 || requested.some((provider) => !Object.hasOwn(PROVIDERS, provider))) {
-    throw new AppError(503, "provider_invalid", "Unsupported AI provider");
+    throw new AppError(503, "provider_invalid", "当前暂时无法开始优化，请稍后重试。");
   }
   const rawTimeout = env.AI_TIMEOUT_MS?.trim() ?? "";
   const parsedTimeout = /^\d+$/.test(rawTimeout) ? Number(rawTimeout) : NaN;

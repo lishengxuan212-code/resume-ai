@@ -6,7 +6,7 @@ import { createApp } from "../server/app.js";
 
 const fixtureUrl = new URL("./fixtures/resume.docx", import.meta.url);
 const providerFailure = {
-  error: { code: "provider_failed", message: "AI 服务暂时无法生成简历，请稍后重试。" },
+  error: { code: "provider_failed", message: "暂时无法完成优化，请稍后重试。" },
 };
 
 async function withApp(options, run) {
@@ -78,8 +78,8 @@ test("processes a real DOCX through the injected model service and returns an in
     const optimizedResponse = await postJson(baseUrl, "/api/optimize", { facts, targetRole: "产品助理" });
     assert.equal(optimizedResponse.status, 200);
     const { resume } = await optimizedResponse.json();
-    assert.equal(resume.provider, "openai");
-    assert.equal(resume.model, "test-model");
+    assert.equal(Object.hasOwn(resume, 'provider'), false);
+    assert.equal(Object.hasOwn(resume, 'model'), false);
 
     const exportedResponse = await postJson(baseUrl, "/api/export", { facts, resume });
     assert.equal(exportedResponse.status, 200);

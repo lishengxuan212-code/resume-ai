@@ -4,7 +4,7 @@ export function createResumeApi(dependencies = {}) {
     try {
       return await fetchRequest(path, options);
     } catch {
-      throw new Error('无法连接简历服务，请检查网络后重试。');
+      throw new Error('暂时无法连接，请检查网络后重试。');
     }
   }
   async function responseError(response, fallback) {
@@ -13,8 +13,8 @@ export function createResumeApi(dependencies = {}) {
   }
   async function json(path, options) {
     const response = await request(path, options);
-    if (!response.ok) throw await responseError(response, '简历服务暂时不可用，请稍后重试。');
-    try { return await response.json(); } catch { throw new Error('简历服务返回了无法读取的内容，请重试。'); }
+    if (!response.ok) throw await responseError(response, '当前操作暂时不可用，请稍后重试。');
+    try { return await response.json(); } catch { throw new Error('当前操作返回了无法读取的内容，请重试。'); }
   }
   const post = body => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   let api;

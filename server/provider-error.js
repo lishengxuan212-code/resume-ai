@@ -1,19 +1,19 @@
 import { AppError } from './errors.js';
 
 const MESSAGES = {
-  unknown: 'AI 服务暂时无法生成简历，请稍后重试。',
-  network_denied: '本地 AI 服务的外网连接被运行环境拒绝，请使用允许联网的方式重新启动后端服务。',
-  network: '后端无法连接 AI 服务，请检查后端网络或代理后重试。',
-  timeout: 'AI 生成等待超时，已保留你的材料，请稍后重试。',
-  authentication: 'AI 服务密钥验证失败，请检查服务端配置后重试。',
-  balance: 'AI 服务账户余额不足，请充值或切换已配置的服务商。',
-  permission: '当前 AI 账户没有调用权限，请检查账户权限和服务区域。',
-  model: '配置的 AI 模型或接口不可用，请检查服务端模型配置。',
-  request: 'AI 服务不接受当前请求参数，请检查模型与接口配置。',
-  rate_limit: 'AI 服务请求过于频繁或额度受限，请稍后重试。',
-  unavailable: 'AI 服务商暂时不可用，请稍后重试。',
-  invalid_result: 'AI 暂时未能生成可用简历，系统已连续自动重试 2 次，材料已保留，请稍后再试。',
-  insufficient_optimization: 'AI 返回内容与原始材料过于相似，系统已连续自动重试 2 次，仍未形成实质优化。你的材料已保留，请重试或补充更具体的经历。',
+  unknown: '暂时无法完成优化，请稍后重试。',
+  network_denied: '当前网络环境无法完成优化，请检查网络后重试。',
+  network: '当前网络无法完成优化，请检查网络或代理后重试。',
+  timeout: '优化等待超时，材料已保留，请稍后重试。',
+  authentication: '当前配置无法完成优化，请稍后重试。',
+  balance: '当前配置暂时无法完成优化，请稍后重试。',
+  permission: '当前配置暂时无法完成优化，请稍后重试。',
+  model: '当前配置暂时无法完成优化，请稍后重试。',
+  request: '当前配置暂时无法完成优化，请稍后重试。',
+  rate_limit: '当前请求较多，请稍后重试。',
+  unavailable: '当前操作暂时不可用，请稍后重试。',
+  invalid_result: '暂时未能完成优化，系统已连续自动重试 2 次，材料已保留，请稍后再试。',
+  insufficient_optimization: '本次未形成足够优化，材料已保留，请重试或补充更具体的经历。',
 };
 
 export class ProviderError extends AppError {

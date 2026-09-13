@@ -29,6 +29,11 @@ function currentContentFallback(input, config) {
   return { ...fallback, quality: { checked: true, substantiveChange: false, sourceSimilarity: 1, exactCopyCount: 0, totalBullets, reason: 'current_content_fallback' } };
 }
 
+function publicResult(value) {
+  const { provider, model, ...result } = value;
+  return result;
+}
+
 export function createApp({ config, configError, fetchImpl, services } = {}) {
   const app = express();
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } });
@@ -40,15 +45,12 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
       }
 
       if (!PROVIDERS.has(config?.provider)) {
-        throw new AppError(503, "provider_invalid", "Unsupported AI provider");
+        throw new AppError(503, "provider_invalid", "当前暂时无法开始优化，请稍后重试。");
       }
 
       response.json({
-        provider: config.provider,
-        model: config.model ?? null,
         configured: config.configured,
         methodologyVersion: METHODOLOGY_VERSION,
-        ...(config.providers?.filter((item) => item.configured).length > 1 ? { fallbackProviders: config.providers.filter((item) => item.configured).map((item) => ({ provider: item.provider, model: item.model })) } : {}),
       });
     } catch (error) { next(error); }
   });
@@ -72,13 +74,13 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
     try {
       const input = validateDiagnosisInput(request.body);
       if (configError) throw configError;
-      if (services?.diagnoseResume && !config?.configured) throw new AppError(503, 'provider_unconfigured', '当前 AI 服务尚未配置。');
+      if (services?.diagnoseResume && !config?.configured) throw new AppError(503, 'provider_unconfigured', '当前暂时无法开始优化，请稍后重试。');
       const provider = services?.diagnoseResume ? null : createProvider(config, fetchImpl);
       let generated;
       try { generated = services?.diagnoseResume ? await services.diagnoseResume(input) : await provider.diagnoseResume(input); }
       catch (error) { throw safeProviderError(error); }
       const diagnosis = validateDiagnosis(generated, input.facts, generated.provider ?? config.provider, generated.model ?? config.model, { ruleIds: input.ruleIds });
-      response.json({ diagnosis });
+      response.json({ diagnosis: publicResult(diagnosis) });
     } catch (error) { next(error); }
   });
 
@@ -87,7 +89,7 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
       const input = validateOptimizeInput(request.body);
       if (configError) throw configError;
       if (services?.optimizeResume && !config?.configured) {
-        throw new AppError(503, "provider_unconfigured", "当前 AI 服务尚未配置。");
+        throw new AppError(503, "provider_unconfigured", "当前暂时无法开始优化，请稍后重试。");
       }
       const provider = services?.optimizeResume ? null : createProvider(config, fetchImpl);
       let generated;
@@ -106,13 +108,13 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
       } catch {
         throw new ProviderError('invalid_result');
       }
-      response.json({ resume, facts: input.facts });
+      response.json({ resume: publicResult(resume), facts: input.facts });
     } catch (error) {
       const safeError = safeProviderError(error);
       if (safeError.reason === 'invalid_result') {
         try {
           const input = validateOptimizeInput(request.body);
-          return response.json({ resume: currentContentFallback(input, config), facts: input.facts });
+          return response.json({ resume: publicResult(currentContentFallback(input, config)), facts: input.facts });
         } catch (fallbackError) {
           return next(fallbackError);
         }

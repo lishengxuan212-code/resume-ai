@@ -4,7 +4,7 @@ import { MAX_CONFIRMED_SOURCE_BLOCKS, MAX_DIAGNOSIS_QUESTIONS, MAX_SOURCE_BLOCKS
 import { validateDiagnosis } from './diagnosis-validation.js';
 import { normalizedSectionType, validSectionType } from '../shared/resume/section-types.js';
 
-export function providerFailed() { return new AppError(502, 'provider_failed', 'AI 服务暂时无法生成简历，请稍后重试。'); }
+export function providerFailed() { return new AppError(502, 'provider_failed', '暂时无法完成优化，请稍后重试。'); }
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isText = (value, max, required = false) => typeof value === 'string' && value.length <= max && (!required || value.trim().length > 0);
 const isList = (value, max, required = true) => Array.isArray(value) && value.length <= max && (!required || value.length > 0);

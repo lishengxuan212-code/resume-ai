@@ -11,7 +11,7 @@ const key = "fake-test-provider-key";
 const config = (provider) => ({ provider, model: `${provider}-server-model`, apiKey: key, configured: true });
 const openaiOutput = (text) => ({ status: "completed", output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text, annotations: [] }] }] });
 const chatOutput = (text) => ({ choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: text } }] });
-const safeFailure = (error) => error instanceof AppError && error.status === 502 && error.code === "provider_failed" && error.message === "AI 服务暂时无法生成简历，请稍后重试。";
+const safeFailure = (error) => error instanceof AppError && error.status === 502 && error.code === "provider_failed" && error.message === "暂时无法完成优化，请稍后重试。";
 const reasonFailure = reason => error => error instanceof AppError && error.status === 502 && error.code === 'provider_failed' && error.reason === reason && !error.message.includes(key);
 
 for (const [provider, endpoint] of [
@@ -127,7 +127,7 @@ test("provider selection rejects unsupported names, including object prototype n
 });
 
 test("unconfigured providers fail before generating", () => {
-  assert.throws(() => createProvider({ ...config("openai"), configured: false }, async () => {}), (error) => error instanceof AppError && error.status === 503 && error.code === "provider_unconfigured" && error.message === "当前 AI 服务尚未配置。");
+  assert.throws(() => createProvider({ ...config("openai"), configured: false }, async () => {}), (error) => error instanceof AppError && error.status === 503 && error.code === "provider_unconfigured" && error.message === "当前暂时无法开始优化，请稍后重试。");
 });
 
 test("prompt separates hard instructions from JSON-encoded untrusted facts", () => {

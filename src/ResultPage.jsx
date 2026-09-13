@@ -3,7 +3,6 @@ import { ArrowLeft, ArrowUpRight, PencilSimple, Sparkle, Trash } from '@phosphor
 import { ResumePreview } from './ResumePreview';
 import { withoutEducationBackground } from '../shared/resume/summary.js';
 
-const providerNames = { openai: 'OpenAI', deepseek: 'DeepSeek', qwen: '通义千问' };
 const canonicalHeading = heading => /^(专业技能|核心技能|技能清单|专业能力|技能)$/.test(heading?.trim()) ? '技能' : heading;
 const genericSkillTitle = title => /^(专业技能|核心技能|技能清单|专业能力|技能)$/.test(title?.trim());
 const presentBullet = bullet => {
@@ -86,7 +85,7 @@ export function ResultPage({ facts, resume, busy, downloading, status, statusTex
               })}
             </section>;
           })}
-          <section className="review-section result-notes" id="result-notes"><div className="review-section-heading"><h2>简历提醒</h2><div className="result-section-actions"><span>不会进入正式简历</span><SectionEditControl editing={editing} label="简历内容" onToggle={toggleEditing} /></div></div>{resume.warnings?.length > 0 && <ul className="result-warnings">{resume.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}<p>{resume.quality?.reason === 'current_content_fallback' ? 'AI 的结构化改写未完整返回，当前版本已按你正在编辑的内容保留并整理，未补充或推断新信息。' : resume.quality?.substantiveChange === false ? '当前版本以完整保留已有事实为优先；你可以继续直接编辑任何表述和指标。' : `${providerNames[resume.provider] || resume.provider} 已完成表达优化，并通过来源引用和改写检查。`} 投递前请确认职位、时间、数字和成果均与你的实际情况一致。本区内容仅供当前核对，不会写入下载的正式简历。</p></section>
+          <section className="review-section result-notes" id="result-notes"><div className="review-section-heading"><h2>简历提醒</h2><div className="result-section-actions"><span>不会进入正式简历</span><SectionEditControl editing={editing} label="简历内容" onToggle={toggleEditing} /></div></div>{resume.warnings?.length > 0 && <ul className="result-warnings">{resume.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}<p>{resume.quality?.reason === 'current_content_fallback' ? '本次结构化改写未完整返回，当前版本已按你正在编辑的内容保留并整理，未补充或推断新信息。' : resume.quality?.substantiveChange === false ? '当前版本以完整保留已有事实为优先；你可以继续直接编辑任何表述和指标。' : '已完成表达优化，并通过来源引用和改写检查。'} 投递前请确认职位、时间、数字和成果均与你的实际情况一致。本区内容仅供当前核对，不会写入下载的正式简历。</p></section>
           <ResumePreview facts={facts} resume={resume} presentation={presentation} onPdf={onDownload?.setPreviewPdf} onDownload={onDownload?.download} />
         </article>
         <div className="review-submit-area result-submit-area"><p className={status === 'error' ? 'error' : 'processing-status'} role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{statusText}</p><div className="review-actions"><button className="button secondary" type="button" disabled={busy} onClick={onBack}><PencilSimple size={17} />修改材料并重新优化</button></div></div>

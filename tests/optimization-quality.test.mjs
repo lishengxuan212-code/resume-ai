@@ -17,5 +17,5 @@ test('similarity checker distinguishes verbatim material from substantive restru
 });
 
 test('validation rejects a number that is absent from every cited source', () => {
-  assert.throws(() => resume('按项目归类工作记录，推动效率提升 30%。'), /AI/);
+  assert.throws(() => resume('按项目归类工作记录，推动效率提升 30%。'), /暂时无法完成优化/);
 });

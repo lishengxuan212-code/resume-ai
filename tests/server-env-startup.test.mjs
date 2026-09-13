@@ -71,12 +71,7 @@ test("local server startup loads the selected provider configuration from an env
   });
   try {
     const response = await waitForConfig(`http://127.0.0.1:${port}/api/config`, child);
-    assert.deepEqual(await response.json(), {
-      provider: "deepseek",
-      model: "dummy-startup-model",
-      configured: true,
-      methodologyVersion: '0.1',
-    });
+    assert.deepEqual(await response.json(), { configured: true, methodologyVersion: '0.1' });
   } finally {
     await stop(child);
     await rm(tempDirectory, { recursive: true, force: true });
@@ -97,12 +92,7 @@ test("generic server startup uses injected provider variables without an env fil
   });
   try {
     const response = await waitForConfig(`http://127.0.0.1:${port}/api/config`, child);
-    assert.deepEqual(await response.json(), {
-      provider: "qwen",
-      model: "dummy-process-model",
-      configured: true,
-      methodologyVersion: '0.1',
-    });
+    assert.deepEqual(await response.json(), { configured: true, methodologyVersion: '0.1' });
   } finally {
     await stop(child);
     await rm(temporaryWorkingDirectory, { recursive: true, force: true });

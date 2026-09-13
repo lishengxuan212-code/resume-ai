@@ -35,7 +35,7 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 
 - Treat `简历AI方法论_v0.1.md` as a product specification, not as a file to append wholesale to every prompt. Maintain a versioned executable rule registry with stable rule IDs and select only stage-relevant rules.
 - Run a diagnosis before generation. Show every independent question that can materially change the result and give each one a conservative suggested rewrite; do not arbitrarily keep only three. Keep a 12-question technical safety bound against repeated model output, and always let the user skip all questions and optimize conservatively from existing facts.
-- Every generated resume bullet must expose its supporting source IDs and applied methodology rule IDs. Record the methodology, provider and model versions in the result.
+- Record methodology, provider and model versions only in server-side results used for traceability. Never include provider or model identifiers, or the terms `AI` and `服务`, in user-visible interface copy.
 - Keep methodology rule IDs in backend results for validation and traceability, but never display codes such as `D02`, `E03` or `F03` in the user interface.
 - Structure every generated experience point as a concise user-facing title plus its supporting content. The title must explain what the candidate did, not use a generic placeholder.
 - Present the final optimized resume as the same wide, full-page workspace used for material review, with consistent top bar, introduction, sidebar navigation, content cards and responsive behavior; do not return to a narrow result modal.

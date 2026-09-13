@@ -51,6 +51,6 @@ export function LoadingOverlay({ stage }) {
     </div>
     <p className="loading-stage" id="loading-title" role="status"><span className="loading-dot"/>{titles[stage]}</p>
     <div className="loading-encouragement" key={Math.floor(seconds / 9)}><h2>{quote}</h2><p>{caption}</p></div>
-    <div className="loading-footer"><span className="loading-elapsed">已等待 {seconds} 秒</span><p id="loading-hint">{seconds >= 45 ? '这次处理比平时久一些，仍在等待服务返回。请保持页面打开。' : '请稍候，完成后会自动展示结果。'}</p></div>
+    <div className="loading-footer"><span className="loading-elapsed">已等待 {seconds} 秒</span><p id="loading-hint">{seconds >= 45 ? '这次处理比平时久一些，仍在准备结果。请保持页面打开。' : '请稍候，完成后会自动展示结果。'}</p></div>
   </dialog>, document.body);
 }

@@ -89,7 +89,7 @@ export function App() {
     try {
       const currentConfig = config ?? await readConfig();
       if (!currentConfig?.configured) {
-        if (currentConfig) setConfigError('当前 AI 服务尚未配置。');
+        if (currentConfig) setConfigError('暂时无法开始优化，请稍后重试。');
         return;
       }
       setError(''); setNotice(''); setStatus('diagnosing');

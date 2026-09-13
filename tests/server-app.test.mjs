@@ -16,13 +16,13 @@ async function request(app) {
   }
 }
 
-test("returns selected configuration without the provider key", async () => {
+test("returns only public readiness without provider or model identifiers", async () => {
   const response = await request(
     createApp({ config: { provider: "qwen", model: "qwen-plus", apiKey: "secret", configured: true, timeoutMs: 2345 } }),
   );
 
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { provider: "qwen", model: "qwen-plus", configured: true, methodologyVersion: '0.1' });
+  assert.deepEqual(await response.json(), { configured: true, methodologyVersion: '0.1' });
 });
 
 test("returns a structured 503 response for an invalid provider", async () => {
@@ -32,7 +32,7 @@ test("returns a structured 503 response for an invalid provider", async () => {
 
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), {
-    error: { code: "provider_invalid", message: "Unsupported AI provider" },
+    error: { code: "provider_invalid", message: "当前暂时无法开始优化，请稍后重试。" },
   });
 });
 
@@ -41,6 +41,6 @@ test("keeps an invalid startup provider inside the API error protocol", async ()
 
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), {
-    error: { code: "provider_invalid", message: "Unsupported AI provider" },
+    error: { code: "provider_invalid", message: "当前暂时无法开始优化，请稍后重试。" },
   });
 });

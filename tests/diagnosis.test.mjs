@@ -12,10 +12,10 @@ test('diagnosis validation keeps all material questions within the safety bound 
   const many = { ...diagnosis, questions: Array.from({ length: 12 }, (_, index) => ({ ...diagnosis.questions[0], id: `q${index}` })) };
   assert.equal(validateDiagnosis(many, facts, 'deepseek', 'test').questions.length, 12);
   const tooMany = { ...diagnosis, questions: Array.from({ length: 13 }, (_, index) => ({ ...diagnosis.questions[0], id: `q${index}` })) };
-  assert.throws(() => validateDiagnosis(tooMany, facts, 'deepseek', 'test'), /AI/);
-  assert.throws(() => validateDiagnosis({ ...diagnosis, findings: [{ ...diagnosis.findings[0], evidenceSourceIds: ['unknown'] }] }, facts, 'deepseek', 'test'), /AI/);
-  assert.throws(() => validateDiagnosis({ ...diagnosis, findings: [{ ...diagnosis.findings[0], issue: 'F03 行动细节不足' }] }, facts, 'deepseek', 'test'), /AI/);
-  assert.throws(() => validateDiagnosis({ ...diagnosis, questions: [{ ...diagnosis.questions[0], suggestedRewrite: '' }] }, facts, 'deepseek', 'test'), /AI/);
+  assert.throws(() => validateDiagnosis(tooMany, facts, 'deepseek', 'test'), /暂时未能完成优化/);
+  assert.throws(() => validateDiagnosis({ ...diagnosis, findings: [{ ...diagnosis.findings[0], evidenceSourceIds: ['unknown'] }] }, facts, 'deepseek', 'test'), /暂时未能完成优化/);
+  assert.throws(() => validateDiagnosis({ ...diagnosis, findings: [{ ...diagnosis.findings[0], issue: 'F03 行动细节不足' }] }, facts, 'deepseek', 'test'), /暂时未能完成优化/);
+  assert.throws(() => validateDiagnosis({ ...diagnosis, questions: [{ ...diagnosis.questions[0], suggestedRewrite: '' }] }, facts, 'deepseek', 'test'), /暂时未能完成优化/);
 });
 
 test('diagnose API returns versioned findings and questions without optimizing yet', async () => {
