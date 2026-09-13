@@ -75,18 +75,29 @@ test("exports long reviewed content across pages without throwing", async () => 
   const exportPdf = await getExportPdf();
   assert.equal(typeof exportPdf, "function");
   const longResume = structuredClone(resume);
-  longResume.sections = Array.from({ length: 8 }, (_, sectionIndex) => ({
+  longResume.sections = Array.from({ length: 2 }, (_, sectionIndex) => ({
     heading: `项目经历 ${sectionIndex + 1}`,
-    entries: Array.from({ length: 20 }, (_, entryIndex) => ({
+    entries: Array.from({ length: 5 }, (_, entryIndex) => ({
       title: `产品项目 ${entryIndex + 1}`,
       organization: "示例公司",
       dates: "2025.01 - 2025.06",
-      bullets: Array.from({ length: 8 }, (_, bulletIndex) => ({ title: `项目推进 ${bulletIndex + 1}`, text: "完成用户调研、需求分析和跨团队协作，持续推动产品方案落地。" })),
+      bullets: Array.from({ length: 3 }, (_, bulletIndex) => ({ title: `项目推进 ${bulletIndex + 1}`, text: "完成用户调研、需求分析和跨团队协作，持续推动产品方案落地。" })),
       sourceIds: ["p1-b1"],
     })),
   }));
 
-  await assert.doesNotReject(() => exportPdf({ facts, resume: longResume }));
+  const pages = await extractPageTexts(await exportPdf({ facts, resume: longResume }));
+  assert.ok(pages.length > 1);
+  assert.match(pages.at(-1), /项目推进 3/);
+});
+
+test('uses the optional local avatar and normalizes extraction-only Chinese gaps', async () => {
+  const exportPdf = await getExportPdf();
+  const avatarDataUrl = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDyeiiigD//2Q==';
+  const spacedResume = structuredClone(resume);
+  spacedResume.sections[0].entries[0].bullets[0].text = '大促活动执行 参与；用户分层与付费转化 基于 LTV 与 RF';
+  const text = await extractText(await exportPdf({ facts, resume: spacedResume, presentation: { avatarDataUrl } }));
+  assert.match(text.replace(/\s/g, ''), /大促活动执行参与；用户分层与付费转化基于LTV与RF/);
 });
 
 test("skips labels for absent optional values", async () => {

@@ -69,7 +69,7 @@ test('lists the templates actually enabled by the export service', async () => {
       templates: [
         { id: 'classic', name: '经典', version: 1 },
         { id: 'minimal', name: '简约', version: 1 },
-        { id: 'sidebar', name: '侧栏', version: 1 },
+        { id: 'sidebar', name: '紧凑', version: 1 },
       ],
       defaultTemplateId: 'classic',
     });
@@ -83,11 +83,23 @@ test('passes the selected template to the PDF service and rejects unknown templa
   const selected = await post({ facts, resume, templateId: 'sidebar' }, { services: { exportPdf: async input => { received = input; return Buffer.from('%PDF-test'); } } });
   assert.equal(selected.status, 200);
   assert.equal(received.templateId, 'sidebar');
+  assert.equal(received.presentation.avatarDataUrl, '');
   let calls = 0;
   const unknown = await post({ facts, resume, templateId: 'not-a-template' }, { services: { exportPdf: async () => { calls += 1; return Buffer.from('%PDF-test'); } } });
   assert.equal(unknown.status, 400);
   assert.match(unknown.body, /请选择可用的简历模板/);
   assert.equal(calls, 0);
+});
+
+test('forwards a valid optional avatar while rejecting malformed presentation data', async () => {
+  let received;
+  const avatarDataUrl = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDyeiiigD//2Q==';
+  const valid = await post({ facts, resume, presentation: { avatarDataUrl } }, { services: { exportPdf: async input => { received = input; return Buffer.from('%PDF-test'); } } });
+  assert.equal(valid.status, 200);
+  assert.equal(received.presentation.avatarDataUrl, avatarDataUrl);
+  const invalid = await post({ facts, resume, presentation: { avatarDataUrl: 'https://example.com/avatar.png' } }, { services: { exportPdf: async () => Buffer.from('%PDF-test') } });
+  assert.equal(invalid.status, 400);
+  assert.match(invalid.body, /头像格式或大小无效/);
 });
 
 test("exports user-confirmed final-page edits without requiring another AI pass", async () => {

@@ -32,8 +32,9 @@ export function createResumeApi(dependencies = {}) {
       if (options.diagnosis) body.diagnosis = options.diagnosis;
       return json('/api/optimize', post(body));
     },
-    async requestResumePdf(facts, resume, templateId = 'classic', signal) {
-      const response = await request('/api/export', { ...post({ facts, resume, templateId }), signal });
+    async requestResumePdf(facts, resume, templateId = 'classic', presentation = {}, signal) {
+      const body = { facts, resume, templateId, ...(presentation?.avatarDataUrl ? { presentation } : {}) };
+      const response = await request('/api/export', { ...post(body), signal });
       if (!response.ok) throw await responseError(response, 'PDF 生成失败，请重试。');
       if (response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/pdf') {
         throw await responseError(response, '未收到 PDF 文件，请稍后重试。');
@@ -56,8 +57,8 @@ export function createResumeApi(dependencies = {}) {
         urls.revokeObjectURL(url);
       }
     },
-    async downloadResume(facts, resume, templateId = 'classic') {
-      const blob = await api.requestResumePdf(facts, resume, templateId);
+    async downloadResume(facts, resume, templateId = 'classic', presentation = {}) {
+      const blob = await api.requestResumePdf(facts, resume, templateId, presentation);
       api.saveResumePdf(blob);
     },
   };

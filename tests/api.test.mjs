@@ -66,6 +66,13 @@ test('PDF requests include the selected template without downloading the preview
   assert.deepEqual(JSON.parse(options.request.body), { facts: { name: '张三' }, resume: { targetRole: '产品助理' }, templateId: 'classic' });
 });
 
+test('PDF requests include the optional local avatar only for export', async () => {
+  let options;
+  const client = create({ fetch: async (path, request) => { options = { path, request }; return new Response('%PDF-test', { headers: { 'Content-Type': 'application/pdf' } }); } });
+  await client.requestResumePdf({ name: '张三' }, { targetRole: '产品助理' }, 'classic', { avatarDataUrl: 'data:image/jpeg;base64,AAAA' });
+  assert.deepEqual(JSON.parse(options.request.body), { facts: { name: '张三' }, resume: { targetRole: '产品助理' }, templateId: 'classic', presentation: { avatarDataUrl: 'data:image/jpeg;base64,AAAA' } });
+});
+
 test('export rejects successful non-PDF responses using any server Chinese error', async () => {
   const client = create({ fetch: async () => Response.json({ error: { message: 'PDF 生成失败，请重试。' } }) });
   await assert.rejects(() => client.downloadResume({}, {}), /PDF 生成失败，请重试。/);

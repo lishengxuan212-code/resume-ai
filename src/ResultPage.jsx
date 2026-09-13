@@ -25,7 +25,12 @@ function SectionEditControl({ editing, label, onToggle }) {
   return <button className="result-section-edit" type="button" aria-label={`${editing ? '完成' : '编辑'}${label}`} onClick={onToggle}><PencilSimple size={14} />{editing ? '完成编辑' : '编辑本部分'}</button>;
 }
 
-export function ResultPage({ facts, resume, busy, downloading, status, statusText, onFacts, onResume, onBack, onDownload, templates = [{ id: 'classic', name: '经典' }, { id: 'minimal', name: '简约' }, { id: 'sidebar', name: '侧栏' }], templateId = 'classic', onTemplateId = () => {} }) {
+function AvatarField({ avatarDataUrl, onAvatarFile, onRemoveAvatar }) {
+  const fileInput = useRef(null);
+  return <div className="result-avatar-field"><p className="result-label">头像 <span className="optional">选填</span></p><div className="result-avatar-actions">{avatarDataUrl ? <img className="result-avatar-image" src={avatarDataUrl} alt="当前简历头像" /> : <span className="result-avatar-placeholder">头像</span>}<div><button className="result-avatar-button" type="button" onClick={() => fileInput.current?.click()}>{avatarDataUrl ? '更换头像' : '上传头像'}</button>{avatarDataUrl && <button className="result-avatar-remove" type="button" onClick={onRemoveAvatar}>移除</button>}</div></div><input ref={fileInput} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={event => { const file = event.target.files?.[0]; if (file) void onAvatarFile(file); event.target.value = ''; }} /></div>;
+}
+
+export function ResultPage({ facts, resume, busy, downloading, status, statusText, onFacts, onResume, onBack, onDownload, presentation = { avatarDataUrl: '' }, onAvatarFile = () => {}, onRemoveAvatar = () => {}, templates = [{ id: 'classic', name: '经典' }, { id: 'minimal', name: '简约' }, { id: 'sidebar', name: '紧凑' }], templateId = 'classic', onTemplateId = () => {} }) {
   const heading = useRef(null);
   const [editing, setEditing] = useState(false);
   useEffect(() => { window.scrollTo(0, 0); heading.current?.focus({ preventScroll: true }); }, []);
@@ -51,6 +56,7 @@ export function ResultPage({ facts, resume, busy, downloading, status, statusTex
           <section className="review-section result-basics" id="result-basics">
             <div className="review-section-heading"><h2>基本资料</h2><div className="result-section-actions"><span>投递前请再次核对</span><SectionEditControl editing={editing} label="基本资料" onToggle={toggleEditing} /></div></div>
             <div className={`result-identity ${editing ? 'is-editing' : ''}`}>
+              <AvatarField avatarDataUrl={presentation.avatarDataUrl} onAvatarFile={onAvatarFile} onRemoveAvatar={onRemoveAvatar} />
               <div><p className="result-label">姓名</p>{editing ? <input className="result-basic-input result-name-input" value={facts.name} maxLength={200} aria-label="编辑姓名" onChange={event => onFacts({ ...facts, name: event.target.value })} /> : <h3>{facts.name || '未填写姓名'}</h3>}</div>
               <div><p className="result-label">联系方式</p>{editing ? <input className="result-basic-input" value={facts.contact} maxLength={12000} aria-label="编辑联系方式" onChange={event => onFacts({ ...facts, contact: event.target.value })} /> : <p>{facts.contact || '未填写联系方式'}</p>}</div>
               <div><p className="result-label">目标岗位</p>{editing ? <input className="result-basic-input" value={resume.targetRole} maxLength={200} aria-label="编辑目标岗位" onChange={event => onResume({ ...resume, targetRole: event.target.value })} /> : <p>{resume.targetRole}</p>}</div>
@@ -72,7 +78,7 @@ export function ResultPage({ facts, resume, busy, downloading, status, statusTex
               })}
             </section>;
           })}
-          <ResumePreview facts={facts} resume={resume} templateId={templateId} templates={templates} onTemplateId={onTemplateId} onPdf={onDownload?.setPreviewPdf} />
+          <ResumePreview facts={facts} resume={resume} templateId={templateId} templates={templates} presentation={presentation} onTemplateId={onTemplateId} onPdf={onDownload?.setPreviewPdf} />
           <section className="review-section result-notes" id="result-notes"><div className="review-section-heading"><h2>简历提醒</h2><div className="result-section-actions"><span>不会进入正式简历</span><SectionEditControl editing={editing} label="简历内容" onToggle={toggleEditing} /></div></div>{resume.warnings?.length > 0 && <ul className="result-warnings">{resume.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}<p>{providerNames[resume.provider] || resume.provider} 已完成表达优化，并通过来源引用和改写检查。投递前请确认职位、时间、数字和成果均与你的实际情况一致。本区内容仅供当前核对，不会写入下载的正式简历。</p></section>
         </article>
         <div className="review-submit-area result-submit-area"><p className={status === 'error' ? 'error' : 'processing-status'} role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{statusText}</p><div className="review-actions"><button className="button secondary" type="button" disabled={busy} onClick={onBack}><PencilSimple size={17} />修改材料并重新优化</button><button className="button primary" type="button" disabled={busy} onClick={() => typeof onDownload === 'function' ? onDownload() : onDownload?.download?.()}>{downloading ? '正在生成 PDF…' : '下载 PDF'}<DownloadSimple size={18} /></button></div></div>

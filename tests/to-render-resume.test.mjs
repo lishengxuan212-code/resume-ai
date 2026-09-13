@@ -9,10 +9,18 @@ test('maps legacy headings to stable render types without exposing provenance', 
   );
   assert.deepEqual(result, {
     schemaVersion: 1,
-    basics: { name: '张三', headline: '产品助理', contactText: '13800000000' },
+    basics: { name: '张三', headline: '产品助理', contactText: '13800000000', avatarDataUrl: '' },
     summary: '产品经历',
     sections: [{ id: 'section-1-skills', type: 'skills', title: '专业技能', items: [{ id: 'entry-1-1', title: '', organization: '', period: '', bullets: [{ id: 'bullet-1-1-1', title: '原型与数据处理', text: '使用 Axure。' }] }] }],
   });
+});
+
+test('removes extraction gaps in Chinese text while retaining regular English spacing', () => {
+  const result = toRenderResume({}, { summary: '大促活动执行 参与；用户分层与付费转化 基于 LTV 与 RF', sections: [{ heading: '项目 经历', entries: [{ title: '活动 执行', organization: 'Example Team', dates: '2025.01 - 2025.06', bullets: [{ title: '用户 分层', text: '基于 LTV 与 RF 完成 分层' }] }] }] });
+  assert.equal(result.summary, '大促活动执行参与；用户分层与付费转化基于LTV与RF');
+  assert.equal(result.sections[0].title, '项目经历');
+  assert.equal(result.sections[0].items[0].organization, 'Example Team');
+  assert.equal(result.sections[0].items[0].bullets[0].text, '基于LTV与RF完成分层');
 });
 
 test('preserves an explicit type when users rename the visible heading', () => {

@@ -1,16 +1,19 @@
 import { normalizedSectionType } from './section-types.js';
+import { normalizeResumeText } from './display-text.js';
 
-const text = value => typeof value === 'string' ? value.trim() : '';
+const text = value => normalizeResumeText(value);
+const rawText = value => typeof value === 'string' ? value.trim() : '';
 const stableId = (kind, first, second) => `${kind}-${first}-${second}`;
 
 /** Converts checked resume content into a template-only document model. */
-export function toRenderResume(facts = {}, resume = {}) {
+export function toRenderResume(facts = {}, resume = {}, presentation = {}) {
   return {
     schemaVersion: 1,
     basics: {
       name: text(facts.name),
       headline: text(resume.targetRole),
-      contactText: text(facts.contact),
+      contactText: rawText(facts.contact),
+      avatarDataUrl: rawText(presentation.avatarDataUrl),
     },
     summary: text(resume.summary),
     sections: (resume.sections ?? []).map((section, sectionIndex) => ({

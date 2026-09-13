@@ -12,16 +12,16 @@ function loadPdfjs() {
   return pdfjsPromise;
 }
 
-function useResumePreview(facts, resume, templateId) {
-  const snapshot = useMemo(() => JSON.stringify({ facts, resume, templateId }), [facts, resume, templateId]);
+function useResumePreview(facts, resume, templateId, presentation) {
+  const snapshot = useMemo(() => JSON.stringify({ facts, resume, templateId, presentation }), [facts, resume, templateId, presentation]);
   const [state, setState] = useState({ key: '', blob: null, loading: true, error: '' });
   useEffect(() => {
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setState({ key: '', blob: null, loading: true, error: '' });
       try {
-        const { facts: currentFacts, resume: currentResume, templateId: currentTemplate } = JSON.parse(snapshot);
-        const blob = await requestResumePdf(currentFacts, currentResume, currentTemplate, controller.signal);
+        const { facts: currentFacts, resume: currentResume, templateId: currentTemplate, presentation: currentPresentation } = JSON.parse(snapshot);
+        const blob = await requestResumePdf(currentFacts, currentResume, currentTemplate, currentPresentation, controller.signal);
         if (!controller.signal.aborted) setState({ key: snapshot, blob, loading: false, error: '' });
       } catch (error) {
         if (!controller.signal.aborted) setState(previous => ({ ...previous, loading: false, error: error.message || '排版预览暂时无法更新。' }));
@@ -130,8 +130,8 @@ function PdfDocument({ blob }) {
   </div>;
 }
 
-export function ResumePreview({ facts, resume, templateId, templates, onTemplateId, onPdf }) {
-  const preview = useResumePreview(facts, resume, templateId);
+export function ResumePreview({ facts, resume, templateId, templates, presentation, onTemplateId, onPdf }) {
+  const preview = useResumePreview(facts, resume, templateId, presentation);
   useEffect(() => { onPdf?.(preview.current && !preview.loading && !preview.error ? preview.blob : null); }, [onPdf, preview.blob, preview.current, preview.error, preview.loading]);
   return <section className="resume-preview" id="result-preview" aria-label="排版预览">
     <div className="resume-preview-toolbar">

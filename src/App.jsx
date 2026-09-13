@@ -10,6 +10,7 @@ import { RequiredMark } from './ReadableEditor';
 import { DiagnosisPage } from './DiagnosisPage';
 import { LoadingOverlay } from './LoadingOverlay';
 import { ResultPage } from './ResultPage';
+import { makeAvatarDataUrl } from './avatar';
 
 const emptyDraft = { name: '', contact: '', school: '', major: '', role: '', experience: '' };
 export function App() {
@@ -32,9 +33,10 @@ export function App() {
   const [configError, setConfigError] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [notice, setNotice] = useState('');
-  const [templates, setTemplates] = useState([{ id: 'classic', name: '经典', version: 1 }, { id: 'minimal', name: '简约', version: 1 }, { id: 'sidebar', name: '侧栏', version: 1 }]);
+  const [templates, setTemplates] = useState([{ id: 'classic', name: '经典', version: 1 }, { id: 'minimal', name: '简约', version: 1 }, { id: 'sidebar', name: '紧凑', version: 1 }]);
   const [templateId, setTemplateId] = useState('classic');
   const [previewPdf, setPreviewPdf] = useState(null);
+  const [presentation, setPresentation] = useState({ avatarDataUrl: '' });
   const busy = status === 'extracting' || status === 'diagnosing' || status === 'optimizing' || downloading;
   const statusText = status === 'extracting' ? '正在识别简历' : status === 'diagnosing' ? '正在按方法论检查材料' : status === 'optimizing' ? '正在优化简历' : downloading ? '正在生成 PDF' : status === 'error' ? error : notice || ({ idle: '请选择简历或在线填写。', reviewing: '请核对并编辑简历事实。', diagnosed: '材料诊断已完成，可以补充回答或直接优化。', ready: '简历优化已完成，可以查看结果并下载 PDF。' }[status]);
   const close = () => setPanel(null);
@@ -56,7 +58,7 @@ export function App() {
     } catch { /* Classic remains available as the local fallback label. */ }
   }
   function beginReview(nextFacts, role = targetRole) {
-    setFacts(nextFacts); setTargetRole(role); setResume(null); setDiagnosis(null); setError(''); setNotice(''); setStatus('reviewing'); setPanel('review');
+    setFacts(nextFacts); setTargetRole(role); setResume(null); setDiagnosis(null); setPresentation({ avatarDataUrl: '' }); setError(''); setNotice(''); setStatus('reviewing'); setPanel('review');
     void readConfig();
   }
   async function selectFile(nextFile) {
@@ -119,7 +121,7 @@ export function App() {
     }
     if (operation.current) return;
     operation.current = true; setDownloading(true); setError(''); setNotice(''); setStatus('ready');
-    try { await downloadResume(facts, resume, templateId); setNotice('PDF 已生成，并已发起下载。'); }
+    try { await downloadResume(facts, resume, templateId, presentation); setNotice('PDF 已生成，并已发起下载。'); }
     catch (issue) { fail(issue); }
     finally { operation.current = false; setDownloading(false); }
   }
@@ -142,7 +144,7 @@ export function App() {
 
   if (panel === 'diagnosis' && diagnosis) return <><DiagnosisPage diagnosis={diagnosis} busy={busy} statusText={statusText} error={status === 'error' ? error : ''} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onOptimize={(answers, skip) => void runOptimization(answers, skip)} />{loading}</>;
 
-  if (panel === 'result' && resume && facts) return <><ResultPage facts={facts} resume={resume} busy={busy} downloading={downloading} status={status} statusText={statusText} templates={templates} templateId={templateId} onTemplateId={value => { setTemplateId(value); setPreviewPdf(null); }} onFacts={next => { setFacts(next); setPreviewPdf(null); setNotice('修改已保存在当前页面，预览将自动更新。'); setError(''); setStatus('ready'); }} onResume={next => { setResume(next); setPreviewPdf(null); setNotice('修改已保存在当前页面，预览将自动更新。'); setError(''); setStatus('ready'); }} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onDownload={{ download, setPreviewPdf }} />{loading}</>;
+  if (panel === 'result' && resume && facts) return <><ResultPage facts={facts} resume={resume} busy={busy} downloading={downloading} status={status} statusText={statusText} templates={templates} templateId={templateId} presentation={presentation} onTemplateId={value => { setTemplateId(value); setPreviewPdf(null); }} onAvatarFile={async file => { try { setPresentation({ avatarDataUrl: await makeAvatarDataUrl(file) }); setPreviewPdf(null); setError(''); setNotice('头像已更新，预览将自动刷新。'); } catch (issue) { setError(''); setNotice(issue.message); } }} onRemoveAvatar={() => { setPresentation({ avatarDataUrl: '' }); setPreviewPdf(null); setNotice('头像已移除，预览将自动刷新。'); }} onFacts={next => { setFacts(next); setPreviewPdf(null); setNotice('修改已保存在当前页面，预览将自动更新。'); setError(''); setStatus('ready'); }} onResume={next => { setResume(next); setPreviewPdf(null); setNotice('修改已保存在当前页面，预览将自动更新。'); setError(''); setStatus('ready'); }} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onDownload={{ download, setPreviewPdf }} />{loading}</>;
 
   return <div className="page">
     <header className="site-header"><a className="wordmark" href="/" aria-label="简历首页">简历</a><button className="login-link" onClick={() => setPanel('login')}>登录</button></header>
