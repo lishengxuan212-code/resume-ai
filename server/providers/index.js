@@ -5,6 +5,7 @@ import { providerFailed, validateOptimizedResume } from '../resume-validation.js
 import { generateOpenAI } from './openai.js';
 import { generateCompatibleChat } from './compatible-chat.js';
 import { ProviderError, safeProviderError } from '../provider-error.js';
+import { buildConservativeResume } from '../conservative-resume.js';
 
 const PROVIDERS = new Set(['openai', 'deepseek', 'qwen']);
 const MAX_ATTEMPTS = 3;
@@ -72,6 +73,15 @@ export function createProvider(config, fetchImpl = globalThis.fetch) {
             revisionFeedback = QUALITY_RETRY_FEEDBACK;
           }
         } catch (error) { lastError = safeProviderError(error); }
+      }
+      // Skipping questions is an explicit request to continue from reviewed facts.
+      // Preserve genuine provider failures, but do not strand that path when all
+      // three attempts only fail the model's structured-output validation.
+      if (input.skipQuestions && lastError?.reason === 'invalid_result') {
+        const settings = settingsFor(configured[0]);
+        const fallback = validateResume(buildConservativeResume(input), input, settings);
+        const totalBullets = fallback.sections.reduce((total, section) => total + section.entries.reduce((count, entry) => count + entry.bullets.length, 0), 0);
+        return { ...fallback, quality: { checked: true, substantiveChange: false, sourceSimilarity: 1, exactCopyCount: 0, totalBullets, reason: 'conservative_fallback' } };
       }
       throw lastError ?? providerFailed();
     },

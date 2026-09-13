@@ -32,32 +32,33 @@ function buildStyles(variant) {
     summary: { fontSize: settings.bodySize, lineHeight: 1.62 },
     entry: { marginBottom: settings.entryGap, minPresenceAhead: 48 },
     separatedEntry: { borderTopWidth: 1.15, borderTopColor: '#000000', paddingTop: 10, marginTop: 12 },
-    entryHeader: { flexDirection: 'row', alignItems: 'baseline', gap: 12, marginBottom: 1 },
-    entryTitle: { flexGrow: 1, flexShrink: 1, minWidth: 0, fontSize: settings.bodySize + 0.4, lineHeight: 1.4, fontWeight: 700 },
+    entryHeader: { flexDirection: 'row', alignItems: 'baseline', gap: 11, marginBottom: 3 },
+    entryTitle: { flexGrow: 1.1, flexShrink: 1, minWidth: 0, fontSize: settings.bodySize + 0.4, lineHeight: 1.4, fontWeight: 700 },
+    organization: { flexGrow: 0.85, flexShrink: 1, minWidth: 0, fontSize: settings.bodySize - 0.8, lineHeight: 1.4 },
     period: { flexShrink: 0, fontSize: settings.bodySize - 1.1 },
-    organization: { fontSize: settings.bodySize - 0.8, marginBottom: 2 },
-    bullet: { marginTop: 3, width: '100%', flexShrink: 1, minWidth: 0, fontSize: settings.bodySize, lineHeight: 1.62 },
-    bulletTitle: { fontWeight: 700 },
+    bullet: { marginTop: 5, width: '100%', flexShrink: 1, minWidth: 0, fontSize: settings.bodySize, lineHeight: 1.62 },
+    bulletTitle: { display: 'block', fontWeight: 700, marginBottom: 1 },
+    bulletBody: { display: 'block' },
     skill: { marginTop: 3, width: '100%', flexShrink: 1, minWidth: 0, fontSize: settings.bodySize, lineHeight: 1.62 },
     footer: { position: 'absolute', bottom: 18, right: settings.pagePadding, color: '#555555', fontSize: 7.5 },
   });
 }
 
 function Bullet({ bullet, skills, styles }) {
-  return h(Text, { style: skills ? styles.skill : styles.bullet, key: bullet.id, wrap: true },
-    skills ? '' : '•　',
-    h(Text, { style: styles.bulletTitle }, `${bullet.title}${skills ? '：' : '　'}`),
-    bullet.text,
+  if (skills) return h(Text, { style: styles.skill, key: bullet.id, wrap: true }, h(Text, { style: styles.bulletTitle }, `${bullet.title}：`), bullet.text);
+  return h(View, { style: styles.bullet, key: bullet.id, wrap: true },
+    h(Text, { style: styles.bulletTitle }, bullet.title),
+    h(Text, { style: styles.bulletBody, wrap: true }, `·　${bullet.text}`),
   );
 }
 
 function ResumeEntry({ entry, skills, styles, separated }) {
   return h(View, { style: separated ? [styles.entry, styles.separatedEntry] : styles.entry, key: entry.id, wrap: true },
-    !skills && (entry.title || entry.period) ? h(View, { style: styles.entryHeader },
+    !skills && (entry.title || entry.organization || entry.period) ? h(View, { style: styles.entryHeader },
       h(Text, { style: styles.entryTitle, wrap: true }, entry.title),
+      entry.organization ? h(Text, { style: styles.organization, wrap: true }, entry.organization) : null,
       entry.period ? h(Text, { style: styles.period }, entry.period) : null,
     ) : null,
-    !skills && entry.organization ? h(Text, { style: styles.organization, wrap: true }, entry.organization) : null,
     ...entry.bullets.map(bullet => h(Bullet, { bullet, skills, styles, key: bullet.id })),
   );
 }

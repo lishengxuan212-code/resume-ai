@@ -64,6 +64,26 @@ test("optimize uses the default provider through injected fetch without exposing
   assert.ok(!result.text.includes(key));
 });
 
+test('skip-question optimization returns the validated factual fallback after invalid provider output', async () => {
+  const fallbackFacts = {
+    ...facts,
+    experiences: [{ title: '产品运营实习生', organization: '知行科技', dates: '2025.03-2025.08', description: '用户访谈：参与用户访谈并整理反馈。', sourceIds: ['p1-b1'] }],
+    sourceBlocks: [{ id: 'p1-b1', text: '知行科技 产品运营实习生 2025.03-2025.08。用户访谈：参与用户访谈并整理反馈。', page: 1 }],
+  };
+  let calls = 0;
+  const result = await post({ facts: fallbackFacts, targetRole: '产品助理', skipQuestions: true }, {
+    fetchImpl: async () => {
+      calls += 1;
+      return { ok: true, json: async () => ({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({ summary: 'incomplete' }) }] }] }) };
+    },
+  });
+  const body = JSON.parse(result.text);
+  assert.equal(result.status, 200);
+  assert.equal(calls, 3);
+  assert.equal(body.resume.quality.reason, 'conservative_fallback');
+  assert.equal(body.resume.sections[0].entries[0].organization, '知行科技');
+});
+
 test("unconfigured optimization returns 503 before contacting a provider", async () => {
   let called = false;
   const result = await post({ facts, targetRole: "产品助理" }, { config: { ...config, configured: false }, fetchImpl: async () => { called = true; } });

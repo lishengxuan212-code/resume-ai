@@ -169,6 +169,28 @@ test('the three-attempt budget is shared across provider fallback', async () => 
   assert.equal(calls.length, 3, 'initial call plus two retries is the overall request budget');
 });
 
+test('skipping questions returns a fact-only resume after three invalid model outputs', async () => {
+  const fallbackFacts = {
+    sourceBlocks: [{ id: 'p1-b1', text: '知行科技 产品运营实习生 2025.03-2025.08。\n用户访谈：参与用户访谈并整理反馈。' }],
+    experiences: [{ title: '产品运营实习生', organization: '知行科技', dates: '2025.03-2025.08', description: '用户访谈：参与用户访谈并整理反馈。', sourceIds: ['p1-b1'] }],
+    skills: [],
+  };
+  let calls = 0;
+  const adapter = createProvider(config('deepseek'), async () => {
+    calls += 1;
+    return { ok: true, json: async () => chatOutput(JSON.stringify({ summary: 'incomplete' })) };
+  });
+  const result = await adapter.generateResume({ facts: fallbackFacts, targetRole: '产品助理', skipQuestions: true });
+  assert.equal(calls, 3);
+  assert.equal(result.quality.reason, 'conservative_fallback');
+  assert.equal(result.sections[0].type, 'experience');
+  assert.equal(result.sections[0].entries[0].title, '产品运营实习生');
+  assert.equal(result.sections[0].entries[0].organization, '知行科技');
+  assert.equal(result.sections[0].entries[0].dates, '2025.03-2025.08');
+  assert.equal(result.sections[0].entries[0].bullets[0].title, '用户访谈');
+  assert.equal(result.sections[0].entries[0].bullets[0].text, '参与用户访谈并整理反馈。');
+});
+
 test('quality gate retries a verbatim result once with explicit revision feedback', async () => {
   const source = '负责收集团队每周提交的工作记录，按照项目归类进展、风险和待协调事项，整理为团队周报并提交负责人。';
   const qualityFacts = { sourceBlocks: [{ id: 'b1', text: source }] };
