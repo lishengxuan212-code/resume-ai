@@ -10,7 +10,7 @@ import { RequiredMark } from './ReadableEditor';
 import { DiagnosisPage } from './DiagnosisPage';
 import { LoadingOverlay } from './LoadingOverlay';
 import { ResultPage } from './ResultPage';
-import { makeAvatarDataUrl } from './avatar';
+import { makeAvatarDataUrl, makeAvatarDataUrlFromSource } from './avatar';
 
 const emptyDraft = { name: '', contact: '', school: '', major: '', role: '', experience: '' };
 export function App() {
@@ -33,8 +33,8 @@ export function App() {
   const [configError, setConfigError] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [notice, setNotice] = useState('');
-  const [templates, setTemplates] = useState([{ id: 'classic', name: '经典', version: 1 }, { id: 'minimal', name: '简约', version: 1 }, { id: 'sidebar', name: '紧凑', version: 1 }]);
-  const [templateId, setTemplateId] = useState('classic');
+  const [templates, setTemplates] = useState([{ id: 'recommended', name: '推荐', version: 1 }, { id: 'classic', name: '经典', version: 1 }, { id: 'minimal', name: '简约', version: 1 }, { id: 'sidebar', name: '紧凑', version: 1 }]);
+  const [templateId, setTemplateId] = useState('recommended');
   const [previewPdf, setPreviewPdf] = useState(null);
   const [presentation, setPresentation] = useState({ avatarDataUrl: '' });
   const busy = status === 'extracting' || status === 'diagnosing' || status === 'optimizing' || downloading;
@@ -57,8 +57,8 @@ export function App() {
       }
     } catch { /* Classic remains available as the local fallback label. */ }
   }
-  function beginReview(nextFacts, role = targetRole) {
-    setFacts(nextFacts); setTargetRole(role); setResume(null); setDiagnosis(null); setPresentation({ avatarDataUrl: '' }); setError(''); setNotice(''); setStatus('reviewing'); setPanel('review');
+  function beginReview(nextFacts, role = targetRole, nextPresentation = { avatarDataUrl: '' }) {
+    setFacts(nextFacts); setTargetRole(role); setResume(null); setDiagnosis(null); setPresentation(nextPresentation); setError(''); setNotice(''); setStatus('reviewing'); setPanel('review');
     void readConfig();
   }
   async function selectFile(nextFile) {
@@ -68,7 +68,11 @@ export function App() {
     operation.current = true;
     const previousFile = file;
     setFile(nextFile); setError(''); setNotice(''); setStatus('extracting'); setPanel('processing');
-    try { const result = await extractResume(nextFile); beginReview(result.facts); }
+    try {
+      const result = await extractResume(nextFile);
+      const avatarDataUrl = await makeAvatarDataUrlFromSource(result.presentation?.avatarDataUrl).catch(() => '');
+      beginReview(result.facts, targetRole, { avatarDataUrl });
+    }
     catch (issue) {
       if (facts) setFile(previousFile);
       fail(issue);

@@ -153,7 +153,7 @@ PDF Blob → PDF.js 预览 / 下载同一 Blob
 | --- | --- | --- | --- |
 | A：内容协议与适配 | 新增 shared/resume/section-types.js、to-render-resume.js；修改 prompt、validation、结果编辑 | 新旧简历都可生成排版模型 | 改标题不改类型；来源不丢；custom 不被遗漏；技能规则不被绕过 |
 | B：Classic 技术验证 | 新增 server/render/fonts.js、templates/classic.js、render-pdf.js；按需加入依赖 | 一个完整中文单栏 PDF 样本集 | 无缺字、截断、空白首页；内容可提取；长条目能续页；部署方式可运行 |
-| C：模板化导出 | 新增模板 registry、修改 app.js 导出校验及元数据接口 | templateId=classic 可通过原 API 导出；旧路径保留 | 编辑后内容正确；未知模板拒绝；简历提醒与内部代码不进入 PDF |
+| C：模板化导出 | 新增模板 registry、修改 app.js 导出校验及元数据接口 | templateId=recommended 作为默认导出；旧模板仍可选择 | 编辑后内容正确；未知模板拒绝；简历提醒与内部代码不进入 PDF |
 | D：真实预览闭环 | 新增 src/ResumePreview.jsx、src/useResumePreview.js；修改 src/api.js、ResultPage、App、styles | 编辑、预览、下载形成完整用户流程 | 连续编辑不会展示旧结果；下载与预览一致；桌面和手机均可完成 |
 | E：模板选择与回归 | 新增 `minimal.js`、`sidebar.js` 与模板选择 UI | 经典、简约、紧凑三种单栏密度 | 切换不改内容、不触发 AI；每种模板都完整覆盖内容并允许自然分页 |
 | F：试用与扩展 | 更新 README、design-qa；按试用结果迭代 | 试用证据与是否上线的判断 | 中文质量、响应与成本可接受；再决定双栏及去除旧 PDFKit |

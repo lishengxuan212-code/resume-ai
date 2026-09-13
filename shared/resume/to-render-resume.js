@@ -14,9 +14,16 @@ export function toRenderResume(facts = {}, resume = {}, presentation = {}) {
       headline: text(resume.targetRole),
       contactText: rawText(facts.contact),
       avatarDataUrl: rawText(presentation.avatarDataUrl),
+      education: (facts.education ?? []).map((entry, index) => ({
+        id: text(entry.id) || stableId('education', index + 1, 1),
+        school: text(entry.school),
+        major: text(entry.major),
+        degree: text(entry.degree),
+        period: text(entry.dates),
+      })).filter(entry => entry.school || entry.major || entry.degree || entry.period),
     },
     summary: text(resume.summary),
-    sections: (resume.sections ?? []).map((section, sectionIndex) => ({
+    sections: (resume.sections ?? []).filter(section => !(facts.education?.length && normalizedSectionType(section.type, section.heading) === 'education')).map((section, sectionIndex) => ({
       id: text(section.id) || stableId('section', sectionIndex + 1, normalizedSectionType(section.type, section.heading)),
       type: normalizedSectionType(section.type, section.heading),
       title: text(section.heading),

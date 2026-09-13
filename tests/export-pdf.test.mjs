@@ -61,7 +61,7 @@ test("exports a non-empty Chinese PDF from reviewed facts and resume", async () 
 
 test('every enabled template preserves the canonical resume content', async () => {
   const exportPdf = await getExportPdf();
-  for (const templateId of ['classic', 'minimal', 'sidebar']) {
+  for (const templateId of ['recommended', 'classic', 'minimal', 'sidebar']) {
     const pdf = await exportPdf({ facts, resume, templateId });
     assert.equal(pdf.subarray(0, 5).toString('ascii'), '%PDF-');
     const text = await extractText(pdf);
@@ -69,6 +69,18 @@ test('every enabled template preserves the canonical resume content', async () =
     assert.match(text, /产品实习生/);
     assert.match(text, /用户访谈/);
   }
+});
+
+test('uses the reference layout with top education and separators between experiences', async () => {
+  const exportPdf = await getExportPdf();
+  const pdf = await exportPdf({
+    facts: { ...facts, education: [{ school: '四川传媒学院', major: '播音与主持艺术', degree: '学士学位', dates: '2019.09 - 2023.06' }] },
+    resume: { ...resume, sections: [{ ...resume.sections[0], entries: [...resume.sections[0].entries, { title: '运营实习生', organization: '示例公司', dates: '2024.01 - 2024.06', bullets: [{ title: '活动执行', text: '完成活动执行与复盘。' }] }] }] },
+    templateId: 'recommended',
+  });
+  const text = await extractText(pdf);
+  assert.match(text, /四川传媒学院/);
+  assert.match(text, /运营实习生/);
 });
 
 test("exports long reviewed content across pages without throwing", async () => {

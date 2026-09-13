@@ -4,6 +4,7 @@ import { AppError } from "./errors.js";
 import { buildFacts } from "./facts.js";
 import { validateUpload } from "./document-validation.js";
 import { MAX_SOURCE_BLOCKS, MAX_SOURCE_BLOCK_TEXT_LENGTH } from "./source-limits.js";
+import { extractPdfAvatar } from './extract-avatar.js';
 
 function unreadable(message) {
   return new AppError(400, "document_unreadable", message);
@@ -97,8 +98,10 @@ async function extractPdf(buffer) {
     }
 
     const sourceBlocks = [];
+    let avatarDataUrl = '';
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
+      if (pageNumber === 1) avatarDataUrl = await extractPdfAvatar(page).catch(() => '');
       const textContent = await page.getTextContent();
       // A PDF content stream may write text boxes out of their visual order.
       // Restore rows from their page coordinates before segmenting headings and
@@ -111,7 +114,7 @@ async function extractPdf(buffer) {
     if (sourceBlocks.length === 0) {
       throw unreadable("该 PDF 没有可提取文字，可能是扫描型文件");
     }
-    return sourceBlocks;
+    return { sourceBlocks, avatarDataUrl };
   } catch (error) {
     if (error instanceof AppError) throw error;
     throw unreadable("PDF 文件无法解析，请确认文件未损坏或未加密");
@@ -129,7 +132,7 @@ async function extractDocx(buffer) {
     }
     const sourceBlocks = [];
     appendSourceBlocks(sourceBlocks, text, null);
-    return sourceBlocks;
+    return { sourceBlocks, avatarDataUrl: '' };
   } catch (error) {
     if (error instanceof AppError) throw error;
     throw unreadable("DOCX 文件无法解析，请确认文件未损坏或未加密");
@@ -139,6 +142,6 @@ async function extractDocx(buffer) {
 export async function extractDocument(file) {
   validateUpload(file);
   const extension = file.originalname.match(/\.([^.]+)$/)[1].toLowerCase();
-  const sourceBlocks = extension === "pdf" ? await extractPdf(file.buffer) : await extractDocx(file.buffer);
-  return { facts: buildFacts(sourceBlocks) };
+  const { sourceBlocks, avatarDataUrl } = extension === "pdf" ? await extractPdf(file.buffer) : await extractDocx(file.buffer);
+  return { facts: buildFacts(sourceBlocks), presentation: { avatarDataUrl } };
 }

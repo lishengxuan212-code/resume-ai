@@ -9,10 +9,18 @@ test('maps legacy headings to stable render types without exposing provenance', 
   );
   assert.deepEqual(result, {
     schemaVersion: 1,
-    basics: { name: '张三', headline: '产品助理', contactText: '13800000000', avatarDataUrl: '' },
+    basics: { name: '张三', headline: '产品助理', contactText: '13800000000', avatarDataUrl: '', education: [] },
     summary: '产品经历',
     sections: [{ id: 'section-1-skills', type: 'skills', title: '专业技能', items: [{ id: 'entry-1-1', title: '', organization: '', period: '', bullets: [{ id: 'bullet-1-1-1', title: '原型与数据处理', text: '使用 Axure。' }] }] }],
   });
+});
+
+test('moves reviewed education into the top information model and avoids a duplicate section', () => {
+  const result = toRenderResume({ education: [{ school: '四川传媒学院', major: '播音与主持艺术', degree: '学士学位', dates: '2019.09 - 2023.06' }] }, {
+    sections: [{ type: 'education', heading: '教育背景', entries: [{ title: '四川传媒学院', bullets: [{ title: '学历', text: '学士学位' }] }] }],
+  });
+  assert.deepEqual(result.basics.education, [{ id: 'education-1-1', school: '四川传媒学院', major: '播音与主持艺术', degree: '学士学位', period: '2019.09 - 2023.06' }]);
+  assert.equal(result.sections.length, 0);
 });
 
 test('removes extraction gaps in Chinese text while retaining regular English spacing', () => {

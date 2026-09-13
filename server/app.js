@@ -26,7 +26,7 @@ function validateExportInput(value) {
     // provenance checks, but do not reject facts the user has directly edited in
     // the final resume after AI generation.
     const validated = validateOptimizedResume(value?.resume, input.facts, "export", "export", { userConfirmedEdits: true });
-    const templateId = value?.templateId === undefined ? 'classic' : value.templateId;
+    const templateId = value?.templateId === undefined ? 'recommended' : value.templateId;
     if (typeof templateId !== 'string' || !getResumeTemplate(templateId)) throw new AppError(400, 'template_invalid', '请选择可用的简历模板。');
     const presentation = value?.presentation === undefined ? {} : value.presentation;
     if (typeof presentation !== 'object' || presentation === null || Array.isArray(presentation)) throw new AppError(400, 'request_invalid', '请提供有效的简历展示设置。');
@@ -74,7 +74,7 @@ export function createApp({ config, configError, fetchImpl, services } = {}) {
   app.get('/api/templates', (request, response) => {
     void request;
     response.setHeader('Cache-Control', 'no-store');
-    response.json({ templates: listResumeTemplates(), defaultTemplateId: 'classic' });
+    response.json({ templates: listResumeTemplates(), defaultTemplateId: 'recommended' });
   });
 
   app.post("/api/extract", upload.single("resume"), async (request, response, next) => {

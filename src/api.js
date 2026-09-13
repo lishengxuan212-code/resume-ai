@@ -32,7 +32,7 @@ export function createResumeApi(dependencies = {}) {
       if (options.diagnosis) body.diagnosis = options.diagnosis;
       return json('/api/optimize', post(body));
     },
-    async requestResumePdf(facts, resume, templateId = 'classic', presentation = {}, signal) {
+    async requestResumePdf(facts, resume, templateId = 'recommended', presentation = {}, signal) {
       const body = { facts, resume, templateId, ...(presentation?.avatarDataUrl ? { presentation } : {}) };
       const response = await request('/api/export', { ...post(body), signal });
       if (!response.ok) throw await responseError(response, 'PDF 生成失败，请重试。');
@@ -57,7 +57,7 @@ export function createResumeApi(dependencies = {}) {
         urls.revokeObjectURL(url);
       }
     },
-    async downloadResume(facts, resume, templateId = 'classic', presentation = {}) {
+    async downloadResume(facts, resume, templateId = 'recommended', presentation = {}) {
       const blob = await api.requestResumePdf(facts, resume, templateId, presentation);
       api.saveResumePdf(blob);
     },

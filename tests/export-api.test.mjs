@@ -67,11 +67,12 @@ test('lists the templates actually enabled by the export service', async () => {
     assert.equal(response.headers.get('cache-control'), 'no-store');
     assert.deepEqual(await response.json(), {
       templates: [
+        { id: 'recommended', name: '推荐', version: 1 },
         { id: 'classic', name: '经典', version: 1 },
         { id: 'minimal', name: '简约', version: 1 },
         { id: 'sidebar', name: '紧凑', version: 1 },
       ],
-      defaultTemplateId: 'classic',
+      defaultTemplateId: 'recommended',
     });
   } finally {
     await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));

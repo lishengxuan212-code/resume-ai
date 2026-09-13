@@ -6,6 +6,6 @@ import { renderResumePdf } from './render/render-pdf.js';
  * @param {{ facts: object, resume: object }} value
  * @returns {Promise<Buffer>}
  */
-export function exportPdf({ facts, resume, templateId, presentation }) {
+export function exportPdf({ facts, resume, templateId = 'recommended', presentation }) {
   return renderResumePdf({ facts, resume, templateId, presentation });
 }

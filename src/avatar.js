@@ -26,3 +26,10 @@ export async function makeAvatarDataUrl(file) {
   if (dataUrl.length > 500_000) throw new Error('头像文件过大，请换一张更简单的图片。');
   return dataUrl;
 }
+
+export async function makeAvatarDataUrlFromSource(dataUrl) {
+  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) return '';
+  const response = await fetch(dataUrl);
+  if (!response.ok) throw new Error('无法读取简历中的头像，请在结果页重新上传。');
+  return makeAvatarDataUrl(await response.blob());
+}
