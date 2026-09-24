@@ -14,6 +14,7 @@ import { getResumeTemplate, listResumeTemplates } from './render/registry.js';
 import { normalizeExportInput } from './export-input.js';
 import { buildConservativeResume } from './conservative-resume.js';
 import { createAccessControl } from './access-control.js';
+import { createAdminControl } from './admin-control.js';
 import { ConcurrencyGate, createWindowLimiter } from './request-limits.js';
 
 const PROVIDERS = new Set(["openai", "deepseek", "qwen"]);
@@ -66,12 +67,14 @@ function securityHeaders(production) {
   };
 }
 
-export function createApp({ config, configError, fetchImpl, services, accessControl, accessConfig, logger = console } = {}) {
+export function createApp({ config, configError, fetchImpl, services, accessControl, adminControl, accessConfig, logger = console } = {}) {
   const app = express();
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } });
   const access = accessControl ?? createAccessControl({ enabled: false });
+  const admin = adminControl ?? createAdminControl({ enabled: false });
   const writeLimiter = createWindowLimiter({ limit: accessConfig?.writeRequestsPerHour ?? 1000, windowMs: 60 * 60 * 1000, message: '操作过于频繁，请稍后重试。' });
   const redeemLimiter = createWindowLimiter({ limit: accessConfig?.redeemRequestsPer15Minutes ?? 10, windowMs: 15 * 60 * 1000, message: '邀请码尝试次数过多，请稍后再试。' });
+  const adminLoginLimiter = createWindowLimiter({ limit: 8, windowMs: 15 * 60 * 1000, message: '管理登录尝试次数过多，请稍后再试。' });
   const extractGate = new ConcurrencyGate({ limit: 1, queueLimit: 8, timeoutMs: 12_000 });
   const providerGate = new ConcurrencyGate({ limit: 3, queueLimit: 20, timeoutMs: 20_000 });
   const exportGate = new ConcurrencyGate({ limit: 2, queueLimit: 12, timeoutMs: 15_000 });
@@ -90,6 +93,22 @@ export function createApp({ config, configError, fetchImpl, services, accessCont
   app.post('/api/access/redeem', redeemLimiter, express.json({ limit: '8kb' }), access.redeem);
   app.post('/api/access/consent', writeLimiter, access.requireAccess, access.requireCsrf, access.acceptConsent);
   app.post('/api/access/logout', writeLimiter, access.requireAccess, access.requireCsrf, access.logout);
+
+  const adminJson = express.json({ limit: '32kb' });
+  app.get('/api/admin/status', admin.status);
+  app.post('/api/admin/setup', adminLoginLimiter, adminJson, admin.setup);
+  app.post('/api/admin/login', adminLoginLimiter, adminJson, admin.login);
+  app.post('/api/admin/logout', admin.requireAdmin, admin.requireCsrf, admin.logout);
+  app.get('/api/admin/overview', admin.requireAdmin, admin.overview);
+  app.get('/api/admin/invites', admin.requireAdmin, admin.invites);
+  app.post('/api/admin/invites', admin.requireAdmin, admin.requireCsrf, adminJson, admin.createInvites);
+  app.patch('/api/admin/invites/:id', admin.requireAdmin, admin.requireCsrf, adminJson, admin.updateInvite);
+  app.post('/api/admin/invites/:id/reset', admin.requireAdmin, admin.requireCsrf, admin.resetInvite);
+  app.get('/api/admin/calls', admin.requireAdmin, admin.calls);
+  app.get('/api/admin/settings', admin.requireAdmin, admin.settings);
+  app.put('/api/admin/settings', admin.requireAdmin, admin.requireCsrf, adminJson, admin.updateSettings);
+  app.get('/api/admin/audit', admin.requireAdmin, admin.audit);
+  app.get('/api/admin/export', admin.requireAdmin, admin.exportData);
 
   app.get("/api/config", (request, response, next) => {
     try {
@@ -114,7 +133,7 @@ export function createApp({ config, configError, fetchImpl, services, accessCont
     response.json({ templates: listResumeTemplates(), defaultTemplateId: 'recommended' });
   });
 
-  app.post("/api/extract", writeLimiter, access.requireAccess, access.requireCsrf, access.requireConsent, access.consume('extract'), extractGate.middleware(), upload.single("resume"), async (request, response, next) => {
+  app.post("/api/extract", writeLimiter, access.requireAccess, access.track('extract'), access.requireCsrf, access.requireConsent, access.consume('extract'), extractGate.middleware(), upload.single("resume"), async (request, response, next) => {
     try {
       if (!request.file) {
         throw new AppError(400, "document_missing", "请通过 resume 字段上传简历文件");
@@ -123,14 +142,14 @@ export function createApp({ config, configError, fetchImpl, services, accessCont
     } catch (error) { next(error); }
   });
 
-  app.post('/api/diagnose', writeLimiter, access.requireAccess, access.requireCsrf, access.requireConsent, access.consume('diagnose'), providerGate.middleware(), express.json({ limit: '4mb' }), async (request, response, next) => {
+  app.post('/api/diagnose', writeLimiter, access.requireAccess, access.track('diagnose'), access.requireCsrf, access.requireConsent, access.consume('diagnose'), providerGate.middleware(), express.json({ limit: '4mb' }), async (request, response, next) => {
     try {
       const input = validateDiagnosisInput(request.body);
       if (configError) throw configError;
       if (services?.diagnoseResume && !config?.configured) throw new AppError(503, 'provider_unconfigured', '当前暂时无法开始优化，请稍后重试。');
       const provider = services?.diagnoseResume ? null : createProvider(config, fetchImpl, {
-        beforeAttempt: () => access.beforeExternalAttempt(request.access),
-        afterAttempt: result => access.afterExternalAttempt(request.access, result),
+        beforeAttempt: details => access.beforeExternalAttempt(request.access, { ...details, requestId: request.requestId }),
+        afterAttempt: (result, context) => access.afterExternalAttempt(request.access, result, context),
       });
       let generated;
       try { generated = services?.diagnoseResume ? await services.diagnoseResume(input) : await provider.diagnoseResume(input); }
@@ -143,7 +162,7 @@ export function createApp({ config, configError, fetchImpl, services, accessCont
     } catch (error) { next(error); }
   });
 
-  app.post("/api/optimize", writeLimiter, access.requireAccess, access.requireCsrf, access.requireConsent, access.consume('optimize'), providerGate.middleware(), express.json({ limit: "4mb" }), async (request, response, next) => {
+  app.post("/api/optimize", writeLimiter, access.requireAccess, access.track('optimize'), access.requireCsrf, access.requireConsent, access.consume('optimize'), providerGate.middleware(), express.json({ limit: "4mb" }), async (request, response, next) => {
     try {
       const input = validateOptimizeInput(request.body);
       if (configError) throw configError;
@@ -151,8 +170,8 @@ export function createApp({ config, configError, fetchImpl, services, accessCont
         throw new AppError(503, "provider_unconfigured", "当前暂时无法开始优化，请稍后重试。");
       }
       const provider = services?.optimizeResume ? null : createProvider(config, fetchImpl, {
-        beforeAttempt: () => access.beforeExternalAttempt(request.access),
-        afterAttempt: result => access.afterExternalAttempt(request.access, result),
+        beforeAttempt: details => access.beforeExternalAttempt(request.access, { ...details, requestId: request.requestId }),
+        afterAttempt: (result, context) => access.afterExternalAttempt(request.access, result, context),
       });
       let generated;
       try {
@@ -187,7 +206,7 @@ export function createApp({ config, configError, fetchImpl, services, accessCont
     }
   });
 
-  app.post("/api/export", writeLimiter, access.requireAccess, access.requireCsrf, access.requireConsent, access.consume('export'), exportGate.middleware(), express.json({ limit: "4mb" }), async (request, response, next) => {
+  app.post("/api/export", writeLimiter, access.requireAccess, access.track('export'), access.requireCsrf, access.requireConsent, access.consume('export'), exportGate.middleware(), express.json({ limit: "4mb" }), async (request, response, next) => {
     try {
       const input = validateExportInput(request.body);
       const pdf = await (services?.exportPdf ?? exportPdf)(input);
@@ -225,6 +244,7 @@ export function createApp({ config, configError, fetchImpl, services, accessCont
         ...(error?.cause?.code || error?.code ? { systemCode: error?.cause?.code ?? error?.code } : {}),
       }));
     }
+    request.errorCode = appError.code;
     response.status(appError.status).json({
       error: { code: appError.code, message: appError.message },
     });

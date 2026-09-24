@@ -25,5 +25,12 @@ export async function generateCompatibleChat(config, input, fetchImpl, task = 'o
   const choice = data?.choices?.[0];
   const content = choice?.message?.content;
   if (data?.error || choice?.message?.refusal || (choice?.finish_reason && choice.finish_reason !== "stop") || typeof content !== "string" || !content.trim()) throw new ProviderError('invalid_result');
-  return JSON.parse(content);
+  return {
+    value: JSON.parse(content),
+    usage: {
+      inputTokens: Number(data?.usage?.prompt_tokens) || 0,
+      outputTokens: Number(data?.usage?.completion_tokens) || 0,
+      totalTokens: Number(data?.usage?.total_tokens) || 0,
+    },
+  };
 }
