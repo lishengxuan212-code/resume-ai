@@ -16,6 +16,19 @@ const emptyOnlineFacts = () => ({
   experiences: [{ title: '', organization: '', dates: '', description: '', sourceIds: [] }],
   skills: [], warnings: [], sourceBlocks: [],
 });
+
+function RuntimeNotice({ access }) {
+  const quota = access?.quota;
+  const exhausted = quota?.enforced && (quota.dailyRemaining <= 0 || quota.totalRemaining <= 0);
+  if (!access?.optimizationPaused && !quota?.enforced) return null;
+  const message = access.optimizationPaused
+    ? '当前暂停新的诊断与优化，材料核对和已有结果下载仍可继续。'
+    : exhausted
+      ? '当前邀请码的优化次数已用完。'
+      : `今日剩余 ${quota.dailyRemaining} 次 · 当前邀请码总剩余 ${quota.totalRemaining} 次`;
+  return <div className={`runtime-notice ${access.optimizationPaused || exhausted ? 'is-warning' : ''}`} role="status">{message}</div>;
+}
+
 export function App() {
   const inputRef = useRef(null);
   const dragDepth = useRef(0);
@@ -49,12 +62,21 @@ export function App() {
     if (issue?.status === 401) setAccess({ loading: false, authorized: false, accessRequired: true, error: '体验凭证已失效，请重新输入邀请码。' });
     setError(issue instanceof Error ? issue.message : issue); setNotice(''); setStatus('error');
   };
-  async function checkAccess() {
-    setAccess(current => ({ ...current, loading: true, error: '' }));
-    try { setAccess({ ...(await getAccessStatus()), loading: false, error: '' }); }
-    catch (issue) { setAccess({ loading: false, authorized: false, accessRequired: true, error: issue.message }); }
+  async function checkAccess({ quiet = false } = {}) {
+    if (!quiet) setAccess(current => ({ ...current, loading: true, error: '' }));
+    try {
+      const result = await getAccessStatus();
+      setAccess(current => ({ ...current, ...result, loading: false, error: '' }));
+    }
+    catch (issue) {
+      if (!quiet) setAccess({ loading: false, authorized: false, accessRequired: true, error: issue.message });
+    }
   }
-  useEffect(() => { void checkAccess(); }, []);
+  useEffect(() => {
+    void checkAccess();
+    const timer = window.setInterval(() => void checkAccess({ quiet: true }), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
   async function submitInvite(event) {
     event.preventDefault();
     if (inviteSubmitting || !inviteCode.trim()) return;
@@ -118,6 +140,8 @@ export function App() {
   async function diagnose(event) {
     event.preventDefault();
     if (operation.current || configLoading) return;
+    if (access.optimizationPaused) { fail('当前暂停新的诊断与优化，请稍后再试。'); return; }
+    if (access.quota?.enforced && (access.quota.dailyRemaining <= 0 || access.quota.totalRemaining <= 0)) { fail('当前邀请码的优化次数已用完。'); return; }
     const next = saveFacts();
     if (!next) return;
     if (!targetRole.trim()) { fail('请填写目标岗位后再优化。'); return; }
@@ -136,13 +160,15 @@ export function App() {
   }
   async function runOptimization(answers = [], skipQuestions = false) {
     if (operation.current) return;
+    if (access.optimizationPaused) { fail('当前暂停新的诊断与优化，请稍后再试。'); return; }
+    if (access.quota?.enforced && (access.quota.dailyRemaining <= 0 || access.quota.totalRemaining <= 0)) { fail('当前邀请码的优化次数已用完。'); return; }
     operation.current = true;
     try {
       setError(''); setNotice(''); setStatus('optimizing');
       const result = await optimizeResume(facts, targetRole.trim(), { jobDescription: jobDescription.trim(), answers, skipQuestions, diagnosis });
       setFacts(result.facts || facts); setResume(result.resume); setPreviewPdf(null); setStatus('ready'); setPanel('result');
     } catch (issue) { fail(issue); }
-    finally { operation.current = false; }
+    finally { operation.current = false; void checkAccess({ quiet: true }); }
   }
   async function download() {
     if (previewPdf) {
@@ -159,6 +185,10 @@ export function App() {
   const resumePanel = () => setPanel(resume ? 'result' : facts ? 'review' : 'processing');
   const beginOnlineReview = () => { setFile(null); beginReview(emptyOnlineFacts(), ''); };
   const loading = busy ? <LoadingOverlay key={downloading ? 'downloading' : status} stage={downloading ? 'downloading' : status} /> : null;
+  const quotaExhausted = access.quota?.enforced && (access.quota.dailyRemaining <= 0 || access.quota.totalRemaining <= 0);
+  const optimizationUnavailable = Boolean(access.optimizationPaused || quotaExhausted);
+  const optimizationMessage = access.optimizationPaused ? '当前暂停新的诊断与优化，请稍后再试。' : quotaExhausted ? '当前邀请码的优化次数已用完。' : '';
+  const runtimeNotice = <RuntimeNotice access={access} />;
 
   if (access.loading || !access.authorized) return <div className="page">
     <header className="site-header"><a className="wordmark" href="/" aria-label="简历首页">简历</a><span className="access-label">限量内测</span></header>
@@ -182,7 +212,7 @@ export function App() {
   </div>;
 
   const fileInput = (<input className="visually-hidden" type="file" accept=".pdf,.docx" ref={inputRef} tabIndex={-1} disabled={busy} aria-label="选择简历文件" onChange={e => { if (e.target.files?.[0]) void selectFile(e.target.files[0]); e.target.value = ''; }} />);
-  if (panel === 'review' && facts) return <><ReviewPage
+  if (panel === 'review' && facts) return <>{runtimeNotice}<ReviewPage
     facts={facts} targetRole={targetRole} file={file} fileInput={fileInput} busy={busy}
     status={status} statusText={statusText} config={config} configLoading={configLoading} configError={configError}
     onBack={close} onChooseFile={chooseFile} onFacts={editFacts}
@@ -192,13 +222,15 @@ export function App() {
     onSkills={text => { try { editFacts(updateReviewedSkills(facts, text)); } catch (issue) { fail(issue); } }}
     onRemoveEntry={(collection, index) => editFacts(removeReviewedEntry(facts, collection, index))}
     onSave={saveFacts} onDiagnose={diagnose} onReadConfig={() => void readConfig()}
+    optimizationUnavailable={optimizationUnavailable} optimizationMessage={optimizationMessage}
   />{loading}</>;
 
-  if (panel === 'diagnosis' && diagnosis) return <><DiagnosisPage diagnosis={diagnosis} busy={busy} statusText={statusText} error={status === 'error' ? error : ''} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onOptimize={(answers, skip) => void runOptimization(answers, skip)} />{loading}</>;
+  if (panel === 'diagnosis' && diagnosis) return <>{runtimeNotice}<DiagnosisPage diagnosis={diagnosis} busy={busy} statusText={statusText} error={status === 'error' ? error : ''} optimizationUnavailable={optimizationUnavailable} optimizationMessage={optimizationMessage} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onOptimize={(answers, skip) => void runOptimization(answers, skip)} />{loading}</>;
 
-  if (panel === 'result' && resume && facts) return <><ResultPage facts={facts} resume={resume} busy={busy} downloading={downloading} status={status} statusText={statusText} presentation={presentation} onAvatarFile={async file => { try { setPresentation({ avatarDataUrl: await makeAvatarDataUrl(file) }); setPreviewPdf(null); setError(''); setNotice('头像已更新，请重新生成 PDF 预览。'); } catch (issue) { setError(''); setNotice(issue.message); } }} onRemoveAvatar={() => { setPresentation({ avatarDataUrl: '' }); setPreviewPdf(null); setNotice('头像已移除，请重新生成 PDF 预览。'); }} onFacts={next => { setFacts(next); setPreviewPdf(null); setNotice('修改已保存，请重新生成 PDF 预览。'); setError(''); setStatus('ready'); }} onResume={next => { setResume(next); setPreviewPdf(null); setNotice('修改已保存，请重新生成 PDF 预览。'); setError(''); setStatus('ready'); }} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onDownload={{ download, setPreviewPdf }} />{loading}</>;
+  if (panel === 'result' && resume && facts) return <>{runtimeNotice}<ResultPage facts={facts} resume={resume} busy={busy} downloading={downloading} status={status} statusText={statusText} presentation={presentation} onAvatarFile={async file => { try { setPresentation({ avatarDataUrl: await makeAvatarDataUrl(file) }); setPreviewPdf(null); setError(''); setNotice('头像已更新，请重新生成 PDF 预览。'); } catch (issue) { setError(''); setNotice(issue.message); } }} onRemoveAvatar={() => { setPresentation({ avatarDataUrl: '' }); setPreviewPdf(null); setNotice('头像已移除，请重新生成 PDF 预览。'); }} onFacts={next => { setFacts(next); setPreviewPdf(null); setNotice('修改已保存，请重新生成 PDF 预览。'); setError(''); setStatus('ready'); }} onResume={next => { setResume(next); setPreviewPdf(null); setNotice('修改已保存，请重新生成 PDF 预览。'); setError(''); setStatus('ready'); }} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onDownload={{ download, setPreviewPdf }} />{loading}</>;
 
   return <div className="page">
+    {runtimeNotice}
     <header className="site-header"><a className="wordmark" href="/" aria-label="简历首页">简历</a><button className="login-link" onClick={() => setPanel('login')}>{access.accessRequired ? '内测体验中' : '免邀请码体验'}</button></header>
     <main className="hero">
       <div className="offer-stage" aria-hidden="true"><img className="offer-image" src="/assets/offer.png" alt="" width="1254" height="1254" fetchPriority="high" /></div>

@@ -427,6 +427,32 @@ export class AccessStore {
     }
   }
 
+  getPublicAccessState(session) {
+    const runtime = this.getRuntimeSettings();
+    if (!session) return { optimizationPaused: runtime.optimizationPaused, quota: null };
+    const today = this.db.prepare(`
+      SELECT COALESCE(optimize_count, 0) AS optimizeToday
+      FROM usage_daily WHERE invite_id = ? AND day = ?
+    `).get(session.invite_id, chinaDay()) || { optimizeToday: 0 };
+    const total = this.db.prepare(`
+      SELECT COALESCE(SUM(optimize_count), 0) AS optimizeTotal
+      FROM usage_daily WHERE invite_id = ?
+    `).get(session.invite_id);
+    const enforced = Boolean(this.config.enforceInviteQuotas && !session.tester);
+    return {
+      optimizationPaused: runtime.optimizationPaused,
+      quota: {
+        enforced,
+        dailyLimit: session.daily_flow_limit,
+        dailyUsed: today.optimizeToday,
+        dailyRemaining: enforced ? Math.max(0, session.daily_flow_limit - today.optimizeToday) : null,
+        totalLimit: session.total_flow_limit,
+        totalUsed: total.optimizeTotal,
+        totalRemaining: enforced ? Math.max(0, session.total_flow_limit - total.optimizeTotal) : null,
+      },
+    };
+  }
+
   getRuntimeSettings() {
     const rows = Object.fromEntries(this.db.prepare('SELECT key, value FROM runtime_settings').all().map(row => [row.key, row.value]));
     return {

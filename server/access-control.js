@@ -21,7 +21,7 @@ export function createAccessControl(config, store) {
     const passthrough = (request, response, next) => { void response; request.access = null; next(); };
     return {
       enabled: false,
-      status(request, response) { void request; response.setHeader('Cache-Control', 'no-store'); response.json({ authorized: true, accessRequired: false, privacyAccepted: true, csrfToken: '' }); },
+      status(request, response) { void request; response.setHeader('Cache-Control', 'no-store'); response.json({ authorized: true, accessRequired: false, privacyAccepted: true, csrfToken: '', optimizationPaused: false, quota: null }); },
       redeem(request, response) { void request; response.status(404).json({ error: { code: 'access_disabled', message: '当前没有启用邀请码。' } }); },
       logout(request, response) { void request; response.status(204).end(); },
       requireAccess: passthrough,
@@ -68,7 +68,7 @@ export function createAccessControl(config, store) {
       const session = sessionFor(request);
       response.setHeader('Cache-Control', 'no-store');
       response.json(session
-        ? { authorized: true, accessRequired: true, csrfToken: session.csrf_token, expiresAt: session.expires_at, privacyAccepted: Boolean(session.consented_at && session.consent_version === PRIVACY_VERSION) }
+        ? { authorized: true, accessRequired: true, csrfToken: session.csrf_token, expiresAt: session.expires_at, privacyAccepted: Boolean(session.consented_at && session.consent_version === PRIVACY_VERSION), ...store.getPublicAccessState(session) }
         : { authorized: false, accessRequired: true });
     },
     redeem(request, response, next) {
@@ -76,7 +76,7 @@ export function createAccessControl(config, store) {
         const result = store.redeem(request.body?.code);
         response.setHeader('Cache-Control', 'no-store');
         response.setHeader('Set-Cookie', cookie(config, result.token, Math.floor(config.sessionTtlMs / 1000)));
-        response.json({ authorized: true, accessRequired: true, csrfToken: result.csrfToken, expiresAt: result.expiresAt, privacyAccepted: false });
+        response.json({ authorized: true, accessRequired: true, csrfToken: result.csrfToken, expiresAt: result.expiresAt, privacyAccepted: false, ...store.getPublicAccessState(store.authenticate(result.token)) });
       } catch (error) { next(error); }
     },
     logout(request, response, next) {
