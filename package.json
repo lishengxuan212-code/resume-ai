@@ -12,6 +12,7 @@
     "server:dev": "node --env-file=.env server/index.js",
     "invite:create": "node --env-file=.env scripts/create-invite-code.mjs",
     "invite:revoke": "node --env-file=.env scripts/revoke-invite-code.mjs",
+    "admin:create": "node --env-file=.env scripts/create-admin-user.mjs",
     "dev:full": "concurrently \"npm run dev\" \"npm run server:dev\"",
     "build": "vite build && node scripts/prepare-sites-build.mjs",
     "preview": "vite preview",

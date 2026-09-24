@@ -33,14 +33,22 @@ export function createProvider(config, fetchImpl = globalThis.fetch, { beforeAtt
           while (attempts < MAX_ATTEMPTS) {
             const attempt = attempts;
             attempts += 1;
+            const attemptDetails = { task: 'diagnose', attempt: attempts, provider: settings.provider, model: settings.model };
+            let attemptContext;
+            let attemptStarted = false;
+            let usage;
             try {
-              await beforeAttempt({ task: 'diagnose', attempt: attempts, provider: settings.provider });
-              const result = await call(settings, revisionFeedback ? { ...input, revisionFeedback } : input, 'diagnose');
-              return validateDiagnosis(result, input.facts, settings.provider, settings.model, { ruleIds: input.ruleIds });
+              attemptContext = await beforeAttempt(attemptDetails);
+              attemptStarted = true;
+              const response = await call(settings, revisionFeedback ? { ...input, revisionFeedback } : input, 'diagnose');
+              usage = response.usage;
+              const validated = validateDiagnosis(response.value, input.facts, settings.provider, settings.model, { ruleIds: input.ruleIds });
+              await afterAttempt({ ...attemptDetails, success: true, usage }, attemptContext);
+              return validated;
             } catch (error) {
               if (error instanceof AppError && !(error instanceof ProviderError)) throw error;
               const safeError = error instanceof SyntaxError ? new ProviderError('invalid_result') : safeProviderError(error);
-              await afterAttempt({ task: 'diagnose', attempt: attempts, provider: settings.provider, reason: safeError.reason });
+              if (attemptStarted) await afterAttempt({ ...attemptDetails, success: false, reason: safeError.reason, usage }, attemptContext);
               if (safeError.reason !== 'invalid_result' || attempt === MAX_ATTEMPTS - 1) throw safeError;
               revisionFeedback = INVALID_DIAGNOSIS_RETRY_FEEDBACK;
             }
@@ -66,14 +74,21 @@ export function createProvider(config, fetchImpl = globalThis.fetch, { beforeAtt
             const attempt = attempts;
             attempts += 1;
             let validated;
+            const attemptDetails = { task: 'optimize', attempt: attempts, provider: settings.provider, model: settings.model };
+            let attemptContext;
+            let attemptStarted = false;
+            let usage;
             try {
-              await beforeAttempt({ task: 'optimize', attempt: attempts, provider: settings.provider });
-              const result = await call(settings, revisionFeedback ? { ...input, revisionFeedback } : input, 'optimize');
-              validated = validateResume(result, input, settings);
+              attemptContext = await beforeAttempt(attemptDetails);
+              attemptStarted = true;
+              const response = await call(settings, revisionFeedback ? { ...input, revisionFeedback } : input, 'optimize');
+              usage = response.usage;
+              validated = validateResume(response.value, input, settings);
+              await afterAttempt({ ...attemptDetails, success: true, usage }, attemptContext);
             } catch (error) {
               if (error instanceof AppError && !(error instanceof ProviderError)) throw error;
               const safeError = error instanceof SyntaxError ? new ProviderError('invalid_result') : safeProviderError(error);
-              await afterAttempt({ task: 'optimize', attempt: attempts, provider: settings.provider, reason: safeError.reason });
+              if (attemptStarted) await afterAttempt({ ...attemptDetails, success: false, reason: safeError.reason, usage }, attemptContext);
               if (safeError.reason !== 'invalid_result' || attempt === MAX_ATTEMPTS - 1) throw safeError;
               revisionFeedback = INVALID_RESULT_RETRY_FEEDBACK;
               continue;

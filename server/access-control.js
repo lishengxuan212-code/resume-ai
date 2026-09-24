@@ -1,5 +1,7 @@
 import { AppError } from './errors.js';
 
+const PRIVACY_VERSION = '2026-09-25';
+
 function parseCookies(header = '') {
   return Object.fromEntries(header.split(';').map(part => {
     const index = part.indexOf('=');
@@ -26,8 +28,9 @@ export function createAccessControl(config, store) {
       requireCsrf: passthrough,
       requireConsent: passthrough,
       acceptConsent(request, response) { void request; response.status(204).end(); },
+      track() { return passthrough; },
       consume() { return passthrough; },
-      beforeExternalAttempt: async () => {},
+      beforeExternalAttempt: async () => null,
       afterExternalAttempt: async () => {},
     };
   }
@@ -53,7 +56,7 @@ export function createAccessControl(config, store) {
 
   function requireConsent(request, response, next) {
     void response;
-    if (!request.access.consented_at || request.access.consent_version !== '2026-09-24') {
+    if (!request.access.consented_at || request.access.consent_version !== PRIVACY_VERSION) {
       return next(new AppError(403, 'privacy_consent_required', '请先阅读并同意隐私说明。'));
     }
     next();
@@ -65,7 +68,7 @@ export function createAccessControl(config, store) {
       const session = sessionFor(request);
       response.setHeader('Cache-Control', 'no-store');
       response.json(session
-        ? { authorized: true, accessRequired: true, csrfToken: session.csrf_token, expiresAt: session.expires_at, privacyAccepted: Boolean(session.consented_at && session.consent_version === '2026-09-24') }
+        ? { authorized: true, accessRequired: true, csrfToken: session.csrf_token, expiresAt: session.expires_at, privacyAccepted: Boolean(session.consented_at && session.consent_version === PRIVACY_VERSION) }
         : { authorized: false, accessRequired: true });
     },
     redeem(request, response, next) {
@@ -88,9 +91,26 @@ export function createAccessControl(config, store) {
     requireConsent,
     acceptConsent(request, response, next) {
       try {
-        store.recordConsent(request.access.session_id, '2026-09-24');
+        store.recordConsent(request.access.session_id, PRIVACY_VERSION);
         response.status(204).end();
       } catch (error) { next(error); }
+    },
+    track(operation) {
+      return (request, response, next) => {
+        let context;
+        let settled = false;
+        try { context = store.beginRequestEvent(request.access, request.requestId, operation); }
+        catch (error) { return next(error); }
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          try { store.finishRequestEvent(context, { statusCode: response.statusCode, errorCode: request.errorCode }); }
+          catch { console.error(JSON.stringify({ event: 'request_event_finish_failed', operation })); }
+        };
+        response.once('finish', finish);
+        response.once('close', finish);
+        next();
+      };
     },
     consume(route) {
       return (request, response, next) => {
@@ -112,9 +132,7 @@ export function createAccessControl(config, store) {
         catch (error) { next(error); }
       };
     },
-    beforeExternalAttempt: async session => store.recordExternalAttempt(session),
-    afterExternalAttempt: async (session, result) => {
-      if (result?.reason === 'network_denied') store.refundExternalAttempt(session);
-    },
+    beforeExternalAttempt: async (session, details) => store.recordExternalAttempt(session, details),
+    afterExternalAttempt: async (session, result, context) => store.finishExternalAttempt(session, result, context),
   };
 }

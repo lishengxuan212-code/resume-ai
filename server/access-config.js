@@ -32,6 +32,7 @@ export function readAccessConfig(env = process.env) {
   if (!enabled) return { enabled: false };
 
   const sessionDays = integer(env.ACCESS_SESSION_DAYS, 14, 1, 90);
+  const adminSessionHours = integer(env.ADMIN_SESSION_HOURS, 8, 1, 24);
   const budgetYuan = integer(env.DAILY_EXTERNAL_BUDGET_YUAN, 10, 1, 10000);
   const alertYuan = integer(env.DAILY_EXTERNAL_ALERT_YUAN, Math.min(5, budgetYuan), 1, budgetYuan);
   const requestCostMicros = integer(env.EXTERNAL_REQUEST_COST_MICROS, 9670, 1, 10_000_000);
@@ -45,7 +46,9 @@ export function readAccessConfig(env = process.env) {
     invitePepper: secret(env.INVITE_PEPPER, 'INVITE_PEPPER'),
     sessionSecret: secret(env.SESSION_HMAC_SECRET, 'SESSION_HMAC_SECRET'),
     cookieName: production ? '__Host-resume_access' : 'resume_access',
+    adminCookieName: production ? '__Host-resume_admin' : 'resume_admin',
     sessionTtlMs: sessionDays * 24 * 60 * 60 * 1000,
+    adminSessionTtlMs: adminSessionHours * 60 * 60 * 1000,
     defaultDailyFlowLimit: integer(env.INVITE_DAILY_FLOW_LIMIT, 2, 1, 20),
     defaultTotalFlowLimit: integer(env.INVITE_TOTAL_FLOW_LIMIT, 20, 1, 1000),
     routeLimits: {

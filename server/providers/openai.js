@@ -22,5 +22,12 @@ export async function generateOpenAI(config, input, fetchImpl, task = 'optimize'
   // carry output_text blocks inside output[].content[].
   const outputText = content.filter((item) => item?.type === "output_text").map((item) => item.text).join("") || data?.output_text;
   if (typeof outputText !== "string" || !outputText.trim()) throw new ProviderError('invalid_result');
-  return JSON.parse(outputText);
+  return {
+    value: JSON.parse(outputText),
+    usage: {
+      inputTokens: Number(data?.usage?.input_tokens) || 0,
+      outputTokens: Number(data?.usage?.output_tokens) || 0,
+      totalTokens: Number(data?.usage?.total_tokens) || 0,
+    },
+  };
 }
