@@ -1,6 +1,6 @@
 import { AppError } from './errors.js';
 import { METHODOLOGY_VERSION, methodologyRuleMap, selectMethodologyRules } from './methodology/index.js';
-import { MAX_CONFIRMED_SOURCE_BLOCKS, MAX_DIAGNOSIS_QUESTIONS, MAX_SOURCE_BLOCKS, MAX_SOURCE_BLOCK_TEXT_LENGTH } from './source-limits.js';
+import { MAX_CONFIRMED_SOURCE_BLOCKS, MAX_DIAGNOSIS_QUESTIONS, MAX_RESUME_BULLETS, MAX_RESUME_BULLET_TEXT_LENGTH, MAX_RESUME_ENTRIES, MAX_RESUME_SECTIONS, MAX_RESUME_SUMMARY_LENGTH, MAX_SOURCE_BLOCKS, MAX_SOURCE_BLOCK_TEXT_LENGTH } from './source-limits.js';
 import { validateDiagnosis } from './diagnosis-validation.js';
 import { normalizedSectionType, validSectionType } from '../shared/resume/section-types.js';
 
@@ -43,7 +43,7 @@ export function appendAnswerSources(facts, answers) {
 
 export function validateOptimizedResume(value, facts, provider, model, options = {}) {
   const fail = () => { throw providerFailed(); };
-  if (!isObject(value) || value.methodologyVersion !== METHODOLOGY_VERSION || !isText(value.summary, 1000) || !isText(value.targetRole, 200, true) || !isList(value.sections, 8)) fail();
+  if (!isObject(value) || value.methodologyVersion !== METHODOLOGY_VERSION || !isText(value.summary, MAX_RESUME_SUMMARY_LENGTH) || !isText(value.targetRole, 200, true) || !isList(value.sections, MAX_RESUME_SECTIONS)) fail();
   if (!isObject(facts) || !isList(facts.sourceBlocks, MAX_CONFIRMED_SOURCE_BLOCKS)) fail();
   const sources = new Map(facts.sourceBlocks.map(block => [block?.id, block?.text ?? '']));
   const normalize = text => String(text ?? '').replace(/[\s\p{P}\p{S}]+/gu, '').toLowerCase();
@@ -66,13 +66,16 @@ export function validateOptimizedResume(value, facts, provider, model, options =
   const validSkillPresentation = (output, ids, type) => {
     if (options.userConfirmedEdits) return true;
     if (type !== 'skills') return true;
-    if (output.length > 160) return false;
     const cited = ids.map(id => sources.get(id)).join(' ');
     return [...output.matchAll(/精通|熟练|掌握|擅长/g)].every(match => cited.includes(match[0]));
   };
   const skillCategoryTitles = new Set(['办公软件', '办公技能', '办公工具', '数据分析', '专业工具', '工具技能', '语言能力', '专业能力', '技能与工具'].map(normalize));
   const genericBulletTitles = new Set(['工作内容', '经历描述', '工作职责', '职责描述', '主要工作', '核心职责', '项目内容', '经历要点'].map(normalize));
-  const genericSkillBulletTitles = new Set(['商业化运营', '用户运营', '产品运营', '运营技能', '工具', '常用工具', '工具使用', '工具能力', '技能清单', '专业技能', '专业能力', '核心技能'].map(normalize));
+  const genericSkillBulletTitles = new Set(['商业化运营', '用户运营', '产品运营', '运营技能', '工具', '常用工具', '工具使用', '工具能力', '技能清单', '专业技能', '专业能力', '核心技能', '实践方法'].map(normalize));
+  const explicitSkillTitles = new Set((facts.skills ?? []).map(skill => {
+    const [title, ...body] = String(skill).split(/[：:]/u);
+    return body.length ? normalize(title) : '';
+  }).filter(Boolean));
   const validEntryMetadata = (entry, type) => {
     if (options.userConfirmedEdits) return true;
     const title = normalize(entry.title);
@@ -84,24 +87,40 @@ export function validateOptimizedResume(value, facts, provider, model, options =
       && metadataNumbers.every(number => [...sources.values()].some(text => text.includes(number)));
   };
   const derivedExperienceDurations = value.summary.match(/(?:约|近|超过|共)?[一二三四五六七八九十两\d]+(?:余|多)?年(?:工作|相关)?(?:经验|经历)/g) ?? [];
-  if (!isVisibleText(value.summary, 1000) || !validNumbers(value.summary, [...sources.keys()]) || (!options.userConfirmedEdits && derivedExperienceDurations.some(duration => !allSourceText.includes(normalize(duration))))) fail();
+  if (!isVisibleText(value.summary, MAX_RESUME_SUMMARY_LENGTH) || !validNumbers(value.summary, [...sources.keys()]) || (!options.userConfirmedEdits && derivedExperienceDurations.some(duration => !allSourceText.includes(normalize(duration))))) fail();
   const sections = value.sections.map(section => {
-    if (!isObject(section) || !isVisibleText(section.heading, 200, true) || !isList(section.entries, 20) || (section.type !== undefined && !validSectionType(section.type))) fail();
+    if (!isObject(section) || !isVisibleText(section.heading, 200, true) || !isList(section.entries, MAX_RESUME_ENTRIES) || (section.type !== undefined && !validSectionType(section.type))) fail();
     const inferredType = normalizedSectionType(section.type, section.heading);
     const type = inferredType === 'skills' || skillSectionTitles.has(normalize(section.heading)) ? 'skills' : inferredType;
     const heading = type === 'skills' ? '技能' : section.heading.trim();
     const entries = section.entries.map(entry => {
       const allowsEmptyBullets = type === 'education';
       const skillEntry = type === 'skills';
-      if (!isObject(entry) || !['title', 'organization', 'dates'].every(key => isVisibleText(entry[key], 200)) || !isList(entry.bullets, 8, !allowsEmptyBullets) || (skillEntry ? Boolean(entry.organization.trim() || entry.dates.trim()) : !validEntryMetadata(entry, type))) fail();
+      if (!isObject(entry) || !['title', 'organization', 'dates'].every(key => isVisibleText(entry[key], 200)) || !isList(entry.bullets, MAX_RESUME_BULLETS, !allowsEmptyBullets) || (skillEntry ? Boolean(entry.organization.trim() || entry.dates.trim()) : !validEntryMetadata(entry, type))) fail();
       const bullets = entry.bullets.map(bullet => {
-        if (!isObject(bullet) || !isVisibleText(bullet.title, 80, true) || (!options.userConfirmedEdits && (genericBulletTitles.has(normalize(bullet.title)) || (skillEntry && genericSkillBulletTitles.has(normalize(bullet.title))))) || !isVisibleText(bullet.text, 500, true) || !validSources(bullet.sourceIds) || !validRules(bullet.ruleIds) || !bullet.ruleIds.includes('F01') || !validNumbers(`${bullet.title} ${bullet.text}`, bullet.sourceIds) || !validSkillPresentation(`${bullet.title} ${bullet.text}`, bullet.sourceIds, type)) fail();
+        if (!isObject(bullet) || !isVisibleText(bullet.title, 200, true) || (!options.userConfirmedEdits && (genericBulletTitles.has(normalize(bullet.title)) || (skillEntry && (genericSkillBulletTitles.has(normalize(bullet.title)) || (explicitSkillTitles.size && !explicitSkillTitles.has(normalize(bullet.title))))))) || !isVisibleText(bullet.text, MAX_RESUME_BULLET_TEXT_LENGTH, true) || !validSources(bullet.sourceIds) || !validRules(bullet.ruleIds) || !bullet.ruleIds.includes('F01') || !validNumbers(`${bullet.title} ${bullet.text}`, bullet.sourceIds) || !validSkillPresentation(`${bullet.title} ${bullet.text}`, bullet.sourceIds, type)) fail();
         return { title: bullet.title.trim(), text: bullet.text.trim(), sourceIds: [...bullet.sourceIds], ruleIds: [...bullet.ruleIds] };
       });
       return { title: skillEntry ? '' : entry.title, organization: entry.organization, dates: entry.dates, bullets };
     });
     return { type, heading, entries: type === 'experience' ? recentFirst(entries) : entries };
   });
+  if (!options.userConfirmedEdits) {
+    const outputEntries = sections.filter(section => section.type === 'experience').flatMap(section => section.entries);
+    const factNumbers = text => numberTokens(String(text ?? '').replace(/^\s*\d{1,3}[.、．]\s*/gmu, ''));
+    for (const experience of facts.experiences ?? []) {
+      const same = (actual, expected) => !String(expected ?? '').trim() || normalize(actual) === normalize(expected);
+      const matchingEntry = outputEntries.find(entry => same(entry.title, experience.title) && same(entry.organization, experience.organization) && same(entry.dates, experience.dates));
+      if (!matchingEntry) fail();
+      const output = matchingEntry.bullets.map(bullet => `${bullet.title} ${bullet.text}`).join(' ');
+      const outputNumbers = new Set(numberTokens(output));
+      if (factNumbers(experience.description).some(number => !outputNumbers.has(number))) fail();
+      const numberedResponsibilities = [...String(experience.description ?? '').matchAll(/^\s*\d{1,3}[.、．]\s*\S+/gmu)].length;
+      if (numberedResponsibilities && matchingEntry.bullets.length !== numberedResponsibilities) fail();
+    }
+    const outputSkillTitles = new Set(sections.filter(section => section.type === 'skills').flatMap(section => section.entries).flatMap(entry => entry.bullets).map(bullet => normalize(bullet.title)));
+    if ([...explicitSkillTitles].some(title => !outputSkillTitles.has(title))) fail();
+  }
   const omissions = value.omissions === undefined ? [] : value.omissions;
   if (!isList(omissions, 30, false)) fail();
   const cleanOmissions = omissions.map(item => {

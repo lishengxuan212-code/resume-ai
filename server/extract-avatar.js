@@ -4,6 +4,8 @@ import { OPS } from 'pdfjs-dist/legacy/build/pdf.mjs';
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const MAX_AVATAR_SIDE = 360;
 const MIN_AVATAR_SIDE = 96;
+const MAX_PDF_IMAGES = 20;
+const MAX_IMAGE_PIXELS = 16_000_000;
 
 const crcTable = new Uint32Array(256);
 for (let index = 0; index < 256; index += 1) {
@@ -68,6 +70,7 @@ function getPdfObject(page, name) {
 
 function isAvatarCandidate(image) {
   if (!image?.data || !Number.isInteger(image.width) || !Number.isInteger(image.height)) return false;
+  if (image.width * image.height > MAX_IMAGE_PIXELS) return false;
   if (Math.min(image.width, image.height) < MIN_AVATAR_SIDE) return false;
   const ratio = image.width / image.height;
   return ratio >= 0.58 && ratio <= 1.42 && [3, 4].includes(image.data.length / (image.width * image.height));
@@ -76,6 +79,8 @@ function isAvatarCandidate(image) {
 /** Extract the most photo-like image on the first PDF page for presentation only. */
 export async function extractPdfAvatar(page) {
   const operations = await page.getOperatorList();
+  const imageOperations = operations.fnArray.filter(operation => operation === OPS.paintImageXObject).length;
+  if (imageOperations > MAX_PDF_IMAGES) return '';
   const candidates = [];
   for (let index = 0; index < operations.fnArray.length; index += 1) {
     if (operations.fnArray[index] !== OPS.paintImageXObject) continue;

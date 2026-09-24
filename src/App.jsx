@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FileArrowUp } from '@phosphor-icons/react';
 import '@fontsource/noto-serif-sc/400.css';
 import { Modal } from './Modal';
 import { validateFile, fileSize } from './intake';
-import { getApiConfig, extractResume, diagnoseResume, optimizeResume, saveResumePdf, downloadResume } from './api';
+import { getAccessStatus, redeemInvite, acceptPrivacy, getApiConfig, extractResume, diagnoseResume, optimizeResume, saveResumePdf, downloadResume } from './api';
 import { prepareReviewedFacts, updateReviewedEntry, removeReviewedEntry, updateReviewedSkills } from './resume-state';
 import { ReviewPage } from './ReviewPage';
 import { DiagnosisPage } from './DiagnosisPage';
@@ -37,11 +37,47 @@ export function App() {
   const [notice, setNotice] = useState('');
   const [previewPdf, setPreviewPdf] = useState(null);
   const [presentation, setPresentation] = useState({ avatarDataUrl: '' });
+  const [access, setAccess] = useState({ loading: true, authorized: false, accessRequired: true, error: '' });
+  const [inviteCode, setInviteCode] = useState('');
+  const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  const [consentSubmitting, setConsentSubmitting] = useState(false);
   const busy = status === 'extracting' || status === 'diagnosing' || status === 'optimizing' || downloading;
   const statusText = status === 'extracting' ? '正在识别简历' : status === 'diagnosing' ? '正在按方法论检查材料' : status === 'optimizing' ? '正在优化简历' : downloading ? '正在生成 PDF' : status === 'error' ? error : notice || ({ idle: '请选择简历或在线填写。', reviewing: '请核对并编辑简历事实。', diagnosed: '材料诊断已完成，可以补充回答或直接优化。', ready: '简历优化已完成，可以查看结果并下载 PDF。' }[status]);
   const close = () => setPanel(null);
-  const chooseFile = () => { if (!operation.current) inputRef.current?.click(); };
-  const fail = issue => { setError(issue instanceof Error ? issue.message : issue); setNotice(''); setStatus('error'); };
+  const chooseFile = () => { if (!operation.current && access.privacyAccepted) inputRef.current?.click(); };
+  const fail = issue => {
+    if (issue?.status === 401) setAccess({ loading: false, authorized: false, accessRequired: true, error: '体验凭证已失效，请重新输入邀请码。' });
+    setError(issue instanceof Error ? issue.message : issue); setNotice(''); setStatus('error');
+  };
+  async function checkAccess() {
+    setAccess(current => ({ ...current, loading: true, error: '' }));
+    try { setAccess({ ...(await getAccessStatus()), loading: false, error: '' }); }
+    catch (issue) { setAccess({ loading: false, authorized: false, accessRequired: true, error: issue.message }); }
+  }
+  useEffect(() => { void checkAccess(); }, []);
+  async function submitInvite(event) {
+    event.preventDefault();
+    if (inviteSubmitting || !inviteCode.trim()) return;
+    setInviteSubmitting(true);
+    setAccess(current => ({ ...current, error: '' }));
+    try {
+      setAccess({ ...(await redeemInvite(inviteCode.trim())), loading: false, error: '' });
+      setInviteCode('');
+    } catch (issue) {
+      setAccess(current => ({ ...current, loading: false, authorized: false, error: issue.message }));
+    } finally { setInviteSubmitting(false); }
+  }
+  async function confirmPrivacy() {
+    if (consentSubmitting || access.privacyAccepted) return;
+    setConsentSubmitting(true);
+    try {
+      await acceptPrivacy();
+      setAccess(current => ({ ...current, privacyAccepted: true }));
+    } catch (issue) {
+      setError(issue.message);
+      setStatus('error');
+    } finally { setConsentSubmitting(false); }
+  }
   async function readConfig() {
     setConfigLoading(true); setConfigError('');
     try { const next = await getApiConfig(); setConfig(next); return next; }
@@ -124,6 +160,27 @@ export function App() {
   const beginOnlineReview = () => { setFile(null); beginReview(emptyOnlineFacts(), ''); };
   const loading = busy ? <LoadingOverlay key={downloading ? 'downloading' : status} stage={downloading ? 'downloading' : status} /> : null;
 
+  if (access.loading || !access.authorized) return <div className="page">
+    <header className="site-header"><a className="wordmark" href="/" aria-label="简历首页">简历</a><span className="access-label">限量内测</span></header>
+    <main className="hero">
+      <div className="offer-stage" aria-hidden="true"><img className="offer-image" src="/assets/offer.png" alt="" width="1254" height="1254" fetchPriority="high" /></div>
+      <h1><span>心仪的工作，</span><span>从好简历开始。</span></h1>
+      <p className="subtitle">针对目标岗位优化简历，让你的优势更有说服力。</p>
+      <div className="intake invite-panel" aria-busy={access.loading}>
+        {access.loading ? <><strong>正在确认体验资格</strong><p>请稍候。</p></> : <form onSubmit={submitInvite}>
+          <label htmlFor="invite-code">输入邀请码，开始体验</label>
+          <div className="invite-entry">
+            <input id="invite-code" value={inviteCode} onChange={event => setInviteCode(event.target.value.toUpperCase())} autoComplete="one-time-code" inputMode="text" maxLength={23} placeholder="OFFER-XXXX-XXXX-XXXX" aria-describedby="invite-help invite-error" />
+            <button className="button primary" type="submit" disabled={inviteSubmitting || !inviteCode.trim()}>{inviteSubmitting ? '正在验证' : '进入'}</button>
+          </div>
+          <p id="invite-help">邀请码由内测邀请方提供，每个邀请码仅供一位体验者使用。</p>
+          {access.error && <p id="invite-error" className="error" role="alert">{access.error}</p>}
+        </form>}
+        {!access.loading && access.error && <button className="text-button invite-retry" type="button" onClick={() => void checkAccess()}>重新检查</button>}
+      </div>
+    </main>
+  </div>;
+
   const fileInput = (<input className="visually-hidden" type="file" accept=".pdf,.docx" ref={inputRef} tabIndex={-1} disabled={busy} aria-label="选择简历文件" onChange={e => { if (e.target.files?.[0]) void selectFile(e.target.files[0]); e.target.value = ''; }} />);
   if (panel === 'review' && facts) return <><ReviewPage
     facts={facts} targetRole={targetRole} file={file} fileInput={fileInput} busy={busy}
@@ -142,27 +199,28 @@ export function App() {
   if (panel === 'result' && resume && facts) return <><ResultPage facts={facts} resume={resume} busy={busy} downloading={downloading} status={status} statusText={statusText} presentation={presentation} onAvatarFile={async file => { try { setPresentation({ avatarDataUrl: await makeAvatarDataUrl(file) }); setPreviewPdf(null); setError(''); setNotice('头像已更新，请重新生成 PDF 预览。'); } catch (issue) { setError(''); setNotice(issue.message); } }} onRemoveAvatar={() => { setPresentation({ avatarDataUrl: '' }); setPreviewPdf(null); setNotice('头像已移除，请重新生成 PDF 预览。'); }} onFacts={next => { setFacts(next); setPreviewPdf(null); setNotice('修改已保存，请重新生成 PDF 预览。'); setError(''); setStatus('ready'); }} onResume={next => { setResume(next); setPreviewPdf(null); setNotice('修改已保存，请重新生成 PDF 预览。'); setError(''); setStatus('ready'); }} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onDownload={{ download, setPreviewPdf }} />{loading}</>;
 
   return <div className="page">
-    <header className="site-header"><a className="wordmark" href="/" aria-label="简历首页">简历</a><button className="login-link" onClick={() => setPanel('login')}>登录</button></header>
+    <header className="site-header"><a className="wordmark" href="/" aria-label="简历首页">简历</a><button className="login-link" onClick={() => setPanel('login')}>{access.accessRequired ? '内测体验中' : '免邀请码体验'}</button></header>
     <main className="hero">
       <div className="offer-stage" aria-hidden="true"><img className="offer-image" src="/assets/offer.png" alt="" width="1254" height="1254" fetchPriority="high" /></div>
       <h1><span>心仪的工作，</span><span>从好简历开始。</span></h1>
       <p className="subtitle">针对目标岗位优化简历，让你的优势更有说服力。</p>
       <div className="intake">
         {fileInput}
-        <div className={`upload-panel ${dragging ? 'is-dragging' : ''}`} onDragEnter={e => { e.preventDefault(); if (!busy) { dragDepth.current++; setDragging(true); } }} onDragOver={e => e.preventDefault()} onDragLeave={e => { e.preventDefault(); dragDepth.current--; if (dragDepth.current <= 0) setDragging(false); }} onDrop={e => { e.preventDefault(); dragDepth.current = 0; setDragging(false); if (operation.current) return; const files = e.dataTransfer.files; if (files.length > 1) { fail('每次请选择一份简历。'); return; } if (files[0]) void selectFile(files[0]); }}>
+        <div className={`upload-panel ${dragging ? 'is-dragging' : ''}`} onDragEnter={e => { e.preventDefault(); if (!busy && access.privacyAccepted) { dragDepth.current++; setDragging(true); } }} onDragOver={e => e.preventDefault()} onDragLeave={e => { e.preventDefault(); dragDepth.current--; if (dragDepth.current <= 0) setDragging(false); }} onDrop={e => { e.preventDefault(); dragDepth.current = 0; setDragging(false); if (operation.current || !access.privacyAccepted) return; const files = e.dataTransfer.files; if (files.length > 1) { fail('每次请选择一份简历。'); return; } if (files[0]) void selectFile(files[0]); }}>
           <button className="upload-target" type="button" onClick={file ? resumePanel : chooseFile} aria-label={file ? `查看已选择的文件：${file.name}` : '选择或拖拽简历文件'}>
             <FileArrowUp className="upload-icon" size={57} weight="thin" aria-hidden="true" />
             <span className="upload-copy"><strong>{dragging ? '松开，选择这份简历' : file ? file.name : '上传你的简历'}</strong><span>{file ? `${status === 'extracting' ? '正在识别' : '已选择'} · ${fileSize(file.size)}` : '点击选择，或拖拽文件到这里'}</span></span>
           </button>
-          <button className="button primary upload-button" type="button" onClick={chooseFile} disabled={busy}>{file ? '更换文件' : '上传简历'}</button>
+          <button className="button primary upload-button" type="button" onClick={chooseFile} disabled={busy || !access.privacyAccepted}>{file ? '更换文件' : '上传简历'}</button>
         </div>
+        <label className="privacy-consent"><input type="checkbox" checked={Boolean(access.privacyAccepted)} disabled={consentSubmitting || access.privacyAccepted} onChange={event => { if (event.target.checked) void confirmPrivacy(); }} /><span>我已阅读并同意<a href="/privacy.html" target="_blank" rel="noreferrer">隐私说明</a>，了解简历文字会用于当前处理并发送至第三方文本处理平台。</span></label>
         <p className={status === 'idle' || panel ? 'visually-hidden' : status === 'error' ? 'error' : 'processing-status'} aria-live="polite" aria-atomic="true">{statusText}</p>
-        <button className="button secondary fill-button" type="button" disabled={busy && !facts && !file} onClick={facts || file && busy ? resumePanel : beginOnlineReview}>{resume ? '查看优化结果' : facts ? '继续核对我的材料' : busy ? '查看处理进度' : '没有简历？在线填写'}</button>
+        <button className="button secondary fill-button" type="button" disabled={!access.privacyAccepted || busy && !facts && !file} onClick={facts || file && busy ? resumePanel : beginOnlineReview}>{resume ? '查看优化结果' : facts ? '继续核对我的材料' : busy ? '查看处理进度' : '没有简历？在线填写'}</button>
         <p className="registration-note">首次修改与下载，无需注册</p>
       </div>
     </main>
 
-    {panel === 'login' && <Modal title="先体验，再保存" onClose={close}><p className="modal-lead">首次修改简历无需注册。</p><p className="muted">账号与历史版本功能尚未开放。你可以先体验上传和在线填写。</p><button className="button primary full" onClick={close}>开始体验</button></Modal>}
+    {panel === 'login' && <Modal title="当前体验资格" onClose={close}><p className="modal-lead">当前浏览器已经通过邀请码验证。</p><p className="muted">材料与生成结果只保留在当前页面，刷新后不会保存简历正文。</p><button className="button primary full" onClick={close}>继续体验</button></Modal>}
 
     {panel === 'processing' && !busy && <Modal title="简历识别未完成" onClose={close}>
       {file && <p className="file-name">{file.name} · {fileSize(file.size)}</p>}

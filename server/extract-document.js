@@ -90,9 +90,16 @@ function pdfTextInVisualOrder(items) {
 }
 
 async function extractPdf(buffer) {
+  let loadingTask;
   let document;
   try {
-    document = await getDocument({ data: new Uint8Array(buffer), useSystemFonts: true }).promise;
+    loadingTask = getDocument({
+      data: new Uint8Array(buffer),
+      useSystemFonts: true,
+      isEvalSupported: false,
+      maxImageSize: 16_000_000,
+    });
+    document = await loadingTask.promise;
     if (document.numPages > 10) {
       throw unreadable("PDF 最多支持 10 页");
     }
@@ -119,7 +126,7 @@ async function extractPdf(buffer) {
     if (error instanceof AppError) throw error;
     throw unreadable("PDF 文件无法解析，请确认文件未损坏或未加密");
   } finally {
-    await document?.destroy();
+    await loadingTask?.destroy();
   }
 }
 
