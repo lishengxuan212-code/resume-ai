@@ -1,5 +1,7 @@
 import { AppError } from './errors.js';
 
+const LOCAL_CSRF_TOKEN = 'local-operations-console';
+
 function parseCookies(header = '') {
   return Object.fromEntries(header.split(';').map(part => {
     const index = part.indexOf('=');
@@ -16,6 +18,15 @@ function cookie(config, token, maxAgeSeconds) {
 
 function loopback(request) {
   return ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(request.ip);
+}
+
+function localHost(request) {
+  const rawHost = request.get('X-Forwarded-Host')?.split(',')[0] || request.get('Host') || '';
+  const normalized = rawHost.trim().toLowerCase();
+  const host = normalized.startsWith('[')
+    ? normalized.slice(1, normalized.indexOf(']'))
+    : normalized.split(':')[0];
+  return ['localhost', '127.0.0.1', '::1', 'terminal.local'].includes(host);
 }
 
 function integer(value, fallback, minimum, maximum, message) {
@@ -46,6 +57,10 @@ export function createAdminControl(config, store) {
     return store.authenticateAdmin(parseCookies(request.headers.cookie)[config.adminCookieName]);
   }
 
+  function localAccess(request) {
+    return !config.production && loopback(request) && localHost(request);
+  }
+
   function signedIn(response, result) {
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Set-Cookie', cookie(config, result.token, Math.floor(config.adminSessionTtlMs / 1000)));
@@ -53,6 +68,10 @@ export function createAdminControl(config, store) {
   }
 
   function requireAdmin(request, response, next) {
+    if (localAccess(request)) {
+      request.admin = { admin_user_id: null, username: 'local', csrf_token: LOCAL_CSRF_TOKEN, local: true };
+      return next();
+    }
     const session = sessionFor(request);
     if (!session) return next(new AppError(401, 'admin_required', '请先登录运营控制台。'));
     request.admin = session;
@@ -61,6 +80,7 @@ export function createAdminControl(config, store) {
 
   function requireCsrf(request, response, next) {
     void response;
+    if (request.admin?.local && request.get('X-CSRF-Token') === LOCAL_CSRF_TOKEN) return next();
     if (!store.verifyAdminCsrf(request.admin, request.get('X-CSRF-Token'))) {
       return next(new AppError(403, 'admin_csrf_invalid', '当前管理页面已失效，请刷新后重试。'));
     }
@@ -69,6 +89,10 @@ export function createAdminControl(config, store) {
 
   return {
     status(request, response) {
+      if (localAccess(request)) {
+        response.setHeader('Cache-Control', 'no-store');
+        return response.json({ authenticated: true, setupRequired: false, localMode: true, csrfToken: LOCAL_CSRF_TOKEN, expiresAt: null });
+      }
       const session = sessionFor(request);
       response.setHeader('Cache-Control', 'no-store');
       response.json(session

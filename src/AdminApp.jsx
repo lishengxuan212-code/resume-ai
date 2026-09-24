@@ -271,7 +271,7 @@ export function AdminApp() {
         : page === 'settings' ? <Settings data={data?.settings} onSaved={() => void load('settings')} />
           : <Audit data={data?.events} />;
   return <div className="admin-shell">
-    <aside className="admin-sidebar"><a className="admin-brand" href="/">简历</a><div><p>运营控制台</p><nav aria-label="控制台导航">{pages.map(([key, label]) => <button type="button" className={page === key ? 'is-active' : ''} key={key} onClick={() => setPage(key)}>{label}</button>)}</nav></div><button className="admin-logout" type="button" onClick={async () => { await logoutAdmin().catch(() => null); setAuth({ loading: false, authenticated: false, setupRequired: false }); }}>退出登录</button></aside>
+    <aside className="admin-sidebar"><a className="admin-brand" href="/">简历</a><div><p>运营控制台</p><nav aria-label="控制台导航">{pages.map(([key, label]) => <button type="button" className={page === key ? 'is-active' : ''} key={key} onClick={() => setPage(key)}>{label}</button>)}</nav></div>{auth.localMode ? <span className="admin-local-badge">本机测试模式</span> : <button className="admin-logout" type="button" onClick={async () => { await logoutAdmin().catch(() => null); setAuth({ loading: false, authenticated: false, setupRequired: false }); }}>退出登录</button>}</aside>
     <main className="admin-main"><div className="admin-mobile-head"><strong>{title}</strong><a href="/">返回首页</a></div><ErrorNotice message={error} onClose={() => setError('')} />{content}</main>
   </div>;
 }
