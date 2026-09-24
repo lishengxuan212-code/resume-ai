@@ -13,6 +13,10 @@ export async function generateCompatibleChat(config, input, fetchImpl, task = 'o
     headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
     redirect: "error",
     body: JSON.stringify({ model: config.model, messages: task === 'diagnose' ? buildDiagnosisPrompt(input) : buildResumePrompt(input), response_format: { type: 'json_object' },
+      // Rich resumes can exceed the provider's default JSON output allowance.
+      // Reserve enough room for one complete response instead of accepting a
+      // truncated object and falling back to unedited source material.
+      ...(config.provider === 'deepseek' ? { max_tokens: task === 'optimize' ? 16_000 : 6_000 } : {}),
       // Explicit mode prevents model-alias changes from silently enabling long
       // reasoning before a structured editing response. Other providers differ.
       ...(config.provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {}),

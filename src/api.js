@@ -1,29 +1,54 @@
 export function createResumeApi(dependencies = {}) {
   const fetchRequest = dependencies.fetch ?? globalThis.fetch;
+  let csrfToken = '';
   async function request(path, options) {
     try {
-      return await fetchRequest(path, options);
+      return await fetchRequest(path, { credentials: 'same-origin', ...options });
     } catch {
       throw new Error('暂时无法连接，请检查网络后重试。');
     }
   }
   async function responseError(response, fallback) {
     const body = await response.json().catch(() => null);
-    return new Error(typeof body?.error?.message === 'string' && body.error.message.trim() ? body.error.message : fallback);
+    const error = new Error(typeof body?.error?.message === 'string' && body.error.message.trim() ? body.error.message : fallback);
+    error.code = body?.error?.code;
+    error.status = response.status;
+    if (response.status === 401) csrfToken = '';
+    return error;
   }
   async function json(path, options) {
     const response = await request(path, options);
     if (!response.ok) throw await responseError(response, '当前操作暂时不可用，请稍后重试。');
     try { return await response.json(); } catch { throw new Error('当前操作返回了无法读取的内容，请重试。'); }
   }
-  const post = body => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const csrfHeaders = () => csrfToken ? { 'X-CSRF-Token': csrfToken } : {};
+  const post = body => ({ method: 'POST', headers: { 'Content-Type': 'application/json', ...csrfHeaders() }, body: JSON.stringify(body) });
   let api;
   api = {
+    async getAccessStatus() {
+      const result = await json('/api/access');
+      csrfToken = result.csrfToken || '';
+      return result;
+    },
+    async redeemInvite(code) {
+      const result = await json('/api/access/redeem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+      csrfToken = result.csrfToken || '';
+      return result;
+    },
+    async logoutAccess() {
+      const response = await request('/api/access/logout', { method: 'POST', headers: csrfHeaders() });
+      if (!response.ok) throw await responseError(response, '暂时无法退出，请稍后重试。');
+      csrfToken = '';
+    },
+    async acceptPrivacy() {
+      const response = await request('/api/access/consent', { method: 'POST', headers: csrfHeaders() });
+      if (!response.ok) throw await responseError(response, '暂时无法保存隐私选择，请稍后重试。');
+    },
     getApiConfig: () => json('/api/config'),
     extractResume(file) {
       const body = new FormData();
       body.append('resume', file);
-      return json('/api/extract', { method: 'POST', body });
+      return json('/api/extract', { method: 'POST', headers: csrfHeaders(), body });
     },
     diagnoseResume: (facts, targetRole, jobDescription = '') => json('/api/diagnose', post({ facts, targetRole, jobDescription })),
     optimizeResume: (facts, targetRole, options = {}) => {
@@ -64,4 +89,4 @@ export function createResumeApi(dependencies = {}) {
   return api;
 }
 
-export const { getApiConfig, extractResume, diagnoseResume, optimizeResume, requestResumePdf, saveResumePdf, downloadResume } = createResumeApi();
+export const { getAccessStatus, redeemInvite, logoutAccess, acceptPrivacy, getApiConfig, extractResume, diagnoseResume, optimizeResume, requestResumePdf, saveResumePdf, downloadResume } = createResumeApi();
