@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowUpRight, FileText, Plus, Trash } from '@phosphor-icons/
 import { ReadableEditor, RequiredMark } from './ReadableEditor';
 
 const sections = [['basics', '基本资料'], ['education', '教育背景'], ['work', '工作经历'], ['skills', '技能'], ['sources', '来源原文']];
-export function ReviewPage({ facts, targetRole, jobDescription, file, fileInput, busy, status, statusText, config, configLoading, configError, onBack, onChooseFile, onFacts, onTargetRole, onJobDescription, onSkills, onEntry, onRemoveEntry, onSave, onDiagnose, onReadConfig }) {
+export function ReviewPage({ facts, targetRole, jobDescription, file, fileInput, busy, status, statusText, config, configLoading, configError, optimizationUnavailable, optimizationMessage, onBack, onChooseFile, onFacts, onTargetRole, onJobDescription, onSkills, onEntry, onRemoveEntry, onSave, onDiagnose, onReadConfig }) {
   const heading = useRef(null);
   useEffect(() => { window.scrollTo(0, 0); heading.current?.focus({ preventScroll: true }); }, []);
   const addEntry = collection => onFacts({ ...facts, [collection]: [...facts[collection], collection === 'education'
@@ -44,9 +44,10 @@ export function ReviewPage({ facts, targetRole, jobDescription, file, fileInput,
           {facts.warnings.length > 0 && <ul className="section-note">{facts.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
           <div className="review-submit-area">
             <p className={status === 'error' ? 'error' : 'processing-status'} role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{statusText}</p>
+            {optimizationUnavailable && <p className="runtime-inline-warning" role="status">{optimizationMessage}</p>}
             <div className="service-status">{configLoading ? '正在准备优化…' : configError ? '暂时无法开始优化，请稍后重试。' : config?.configured ? '已准备就绪' : '暂时无法开始优化，请稍后重试。'}{!config?.configured && <button type="button" className="text-button" disabled={busy || configLoading} onClick={onReadConfig}>重新检查</button>}</div>
             <p className="preview-note">继续后会先诊断材料并最多提出 3 个必要问题；你可以跳过问题，直接按现有事实优化。</p>
-            <div className="review-actions"><button type="button" className="button secondary" disabled={busy} onClick={onSave}>保存事实修改</button><button type="submit" className="button primary" disabled={busy || configLoading || !config?.configured}>{status === 'diagnosing' ? '正在检查材料…' : '检查材料并继续'}<ArrowUpRight size={18} /></button></div>
+            <div className="review-actions"><button type="button" className="button secondary" disabled={busy} onClick={onSave}>保存事实修改</button><button type="submit" className="button primary" disabled={busy || configLoading || !config?.configured || optimizationUnavailable}>{status === 'diagnosing' ? '正在检查材料…' : '检查材料并继续'}<ArrowUpRight size={18} /></button></div>
           </div>
         </form>
       </main>

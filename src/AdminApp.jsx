@@ -87,6 +87,7 @@ function Overview({ data, days, onDays }) {
       <div className="admin-heading-actions"><a className="admin-export" href="/api/admin/export?type=daily">导出每日数据</a><label className="admin-select">统计趋势<select value={days} onChange={event => onDays(Number(event.target.value))}><option value="7">最近 7 天</option><option value="14">最近 14 天</option><option value="30">最近 30 天</option></select></label></div>
     </header>
     {settings.optimizationPaused && <div className="admin-notice is-warning">新的诊断与优化当前处于暂停状态。</div>}
+    {Number(summary.estimatedCostYuan) >= Number(settings.dailyExternalAlertYuan) && <div className={`admin-notice ${Number(summary.estimatedCostYuan) >= Number(settings.dailyExternalBudgetYuan) ? 'is-error' : 'is-warning'}`}>今日预估费用已达到{Number(summary.estimatedCostYuan) >= Number(settings.dailyExternalBudgetYuan) ? '硬上限' : '提醒金额'}，请检查调用记录。</div>}
     <section className="admin-metrics" aria-label="今日关键数据">
       <Metric label="活跃邀请码" value={number(summary.activeInvites)} />
       <Metric label="完成优化" value={number(summary.optimizeCount)} />
@@ -154,6 +155,14 @@ function Invites({ data, onReload }) {
   const [created, setCreated] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  useEffect(() => {
+    if (!data?.defaults) return;
+    setForm(current => ({
+      ...current,
+      dailyFlowLimit: data.defaults.dailyFlowLimit,
+      totalFlowLimit: data.defaults.totalFlowLimit,
+    }));
+  }, [data?.defaults?.dailyFlowLimit, data?.defaults?.totalFlowLimit]);
   async function submit(event) {
     event.preventDefault(); setBusy(true); setError(''); setCreated([]);
     try { const result = await createInvites(form); setCreated(result.invites); onReload(); }
@@ -176,13 +185,13 @@ function Invites({ data, onReload }) {
       <label>总优化<input type="number" min="1" max="10000" value={form.totalFlowLimit} onChange={event => setForm({ ...form, totalFlowLimit: Number(event.target.value) })} /></label>
       <label className="admin-grow">备注<input maxLength={40} placeholder="例如：首轮朋友测试" value={form.label} onChange={event => setForm({ ...form, label: event.target.value })} /></label>
       <label className="admin-check"><input type="checkbox" checked={form.tester} onChange={event => setForm({ ...form, tester: event.target.checked })} /><span>测试账号不限次数</span></label>
-      <button className="admin-primary" type="submit" disabled={busy}>{busy ? '正在创建' : '创建邀请码'}</button>
+      <button className="admin-primary" type="submit" disabled={busy || !data?.defaults}>{busy ? '正在创建' : data?.defaults ? '创建邀请码' : '正在读取默认额度'}</button>
     </form>
     <ErrorNotice message={error} onClose={() => setError('')} />
     {created.length > 0 && <section className="admin-created-codes"><div><h2>请立即保存</h2><p>离开页面后不能再次查看这些邀请码。</p></div><pre>{codes}</pre><button type="button" onClick={() => navigator.clipboard?.writeText(codes)}>复制全部</button></section>}
     <section className="admin-section admin-invite-list">
-      <div className="admin-section-title"><div><h2>现有邀请码</h2><p>{data?.length || 0} 条记录。备注不要填写简历内容或联系方式。</p></div></div>
-      {data?.length ? data.map(invite => <InviteRow key={`${invite.id}-${invite.status}-${invite.dailyFlowLimit}-${invite.totalFlowLimit}-${invite.tester}-${invite.optimizeToday}`} invite={invite} originalCode={createdCodeById.get(invite.id)} onSaved={onReload} onReset={reset} />) : <p className="admin-empty">还没有邀请码。</p>}
+      <div className="admin-section-title"><div><h2>现有邀请码</h2><p>{data?.invites?.length || 0} 条记录。备注不要填写简历内容或联系方式。</p></div></div>
+      {data?.invites?.length ? data.invites.map(invite => <InviteRow key={`${invite.id}-${invite.status}-${invite.dailyFlowLimit}-${invite.totalFlowLimit}-${invite.tester}-${invite.optimizeToday}`} invite={invite} originalCode={createdCodeById.get(invite.id)} onSaved={onReload} onReset={reset} />) : <p className="admin-empty">还没有邀请码。</p>}
     </section>
   </>;
 }
@@ -272,7 +281,7 @@ export function AdminApp() {
   if (auth.loading) return <div className="admin-loading-screen">正在打开运营控制台…</div>;
   if (!auth.authenticated) return <AuthScreen setupRequired={auth.setupRequired} onAuthenticated={() => void check()} />;
   const content = page === 'overview' ? <Overview data={data} days={days} onDays={setDays} />
-    : page === 'invites' ? <Invites data={data?.invites} onReload={() => void load('invites')} />
+    : page === 'invites' ? <Invites data={data} onReload={() => void load('invites')} />
       : page === 'calls' ? <Calls data={data?.calls} filters={filters} onFilters={setFilters} />
         : page === 'settings' ? <Settings data={data?.settings} onSaved={() => void load('settings')} />
           : <Audit data={data?.events} />;

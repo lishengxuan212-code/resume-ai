@@ -124,7 +124,16 @@ export function createAdminControl(config, store) {
       catch (error) { next(error); }
     },
     invites(request, response, next) {
-      try { response.json({ invites: store.listInvites() }); }
+      try {
+        const settings = store.getRuntimeSettings();
+        response.json({
+          invites: store.listInvites(),
+          defaults: {
+            dailyFlowLimit: settings.defaultDailyFlowLimit,
+            totalFlowLimit: settings.defaultTotalFlowLimit,
+          },
+        });
+      }
       catch (error) { next(error); }
     },
     createInvites(request, response, next) {
