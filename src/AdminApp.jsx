@@ -121,7 +121,7 @@ function Overview({ data, days, onDays }) {
   </>;
 }
 
-function InviteRow({ invite, onSaved, onReset }) {
+function InviteRow({ invite, originalCode, onSaved, onReset }) {
   const [draft, setDraft] = useState({ label: invite.label || '', dailyFlowLimit: invite.dailyFlowLimit, totalFlowLimit: invite.totalFlowLimit, tester: invite.tester, status: invite.status });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -132,7 +132,12 @@ function InviteRow({ invite, onSaved, onReset }) {
     finally { setBusy(false); }
   }
   return <div className="admin-invite-row">
-    <div className="admin-invite-identity"><strong>{invite.label || `邀请码 ${invite.id.slice(0, 8)}`}</strong><span>{invite.redeemedAt ? `已使用 · 最近 ${dateTime(invite.lastSeenAt)}` : '尚未使用'} · {fullDate(invite.expiresAt)}</span></div>
+    <div className="admin-invite-identity">
+      <strong className={originalCode ? 'is-code' : ''}>{originalCode || invite.label || `管理编号 ${invite.id.slice(0, 8)}`}</strong>
+      <span>{originalCode
+        ? `${invite.label ? `备注：${invite.label} · ` : ''}原始码仅在本页可见`
+        : invite.label ? `管理编号 ${invite.id.slice(0, 8)}` : '原始邀请码已安全隐藏'} · {invite.redeemedAt ? `已使用 · 最近 ${dateTime(invite.lastSeenAt)}` : '尚未使用'} · {fullDate(invite.expiresAt)}</span>
+    </div>
     <label>备注<input value={draft.label} maxLength={40} onChange={event => setDraft({ ...draft, label: event.target.value })} /></label>
     <label>每日<input type="number" min="1" max="100" value={draft.dailyFlowLimit} onChange={event => setDraft({ ...draft, dailyFlowLimit: Number(event.target.value) })} /></label>
     <label>总量<input type="number" min="1" max="10000" value={draft.totalFlowLimit} onChange={event => setDraft({ ...draft, totalFlowLimit: Number(event.target.value) })} /></label>
@@ -161,6 +166,7 @@ function Invites({ data, onReload }) {
     catch (issue) { setError(issue.message); }
   }
   const codes = created.map(item => item.code).join('\n');
+  const createdCodeById = new Map(created.map(item => [item.id, item.code]));
   return <>
     <header className="admin-page-heading"><div><p className="admin-eyebrow">准入管理</p><h1>邀请码</h1><p>原始邀请码只在创建后显示一次，之后只能调整对应记录。</p></div><a className="admin-export" href="/api/admin/export?type=invites">导出使用数据</a></header>
     <form className="admin-create-strip" onSubmit={submit}>
@@ -176,7 +182,7 @@ function Invites({ data, onReload }) {
     {created.length > 0 && <section className="admin-created-codes"><div><h2>请立即保存</h2><p>离开页面后不能再次查看这些邀请码。</p></div><pre>{codes}</pre><button type="button" onClick={() => navigator.clipboard?.writeText(codes)}>复制全部</button></section>}
     <section className="admin-section admin-invite-list">
       <div className="admin-section-title"><div><h2>现有邀请码</h2><p>{data?.length || 0} 条记录。备注不要填写简历内容或联系方式。</p></div></div>
-      {data?.length ? data.map(invite => <InviteRow key={`${invite.id}-${invite.status}-${invite.dailyFlowLimit}-${invite.totalFlowLimit}-${invite.tester}-${invite.optimizeToday}`} invite={invite} onSaved={onReload} onReset={reset} />) : <p className="admin-empty">还没有邀请码。</p>}
+      {data?.length ? data.map(invite => <InviteRow key={`${invite.id}-${invite.status}-${invite.dailyFlowLimit}-${invite.totalFlowLimit}-${invite.tester}-${invite.optimizeToday}`} invite={invite} originalCode={createdCodeById.get(invite.id)} onSaved={onReload} onReset={reset} />) : <p className="admin-empty">还没有邀请码。</p>}
     </section>
   </>;
 }
