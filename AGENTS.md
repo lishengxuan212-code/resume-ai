@@ -16,6 +16,8 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 
 ## Resume extraction decisions
 
+- The operations console controls the public access strategy with one mutually exclusive choice: `无需邀请码` or `需要邀请码`. Saving takes effect on the public page at its next access-state refresh. During testing the default is `无需邀请码`; this only skips the invite gate, while privacy consent, request tracking, IP rate limits, concurrency controls and the daily cost stop remain enabled.
+
 - If OCR is added, it must run locally in the user's browser. Do not use cloud OCR or send rendered PDF pages to third-party recognition services. This does not make the existing server-side extraction or AI optimization browser-local.
 - Diagnose missing text, incorrect reading order, and incorrect field classification separately. Preserve numbered responsibility headings with their own body text in both source text and reviewed work experience. Do not treat a reading-order bug as a reason to add OCR.
 

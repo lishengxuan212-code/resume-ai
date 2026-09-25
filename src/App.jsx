@@ -252,7 +252,7 @@ export function App() {
       </div>
     </main>
 
-    {panel === 'login' && <Modal title="当前体验资格" onClose={close}><p className="modal-lead">当前浏览器已经通过邀请码验证。</p><p className="muted">材料与生成结果只保留在当前页面，刷新后不会保存简历正文。</p><button className="button primary full" onClick={close}>继续体验</button></Modal>}
+    {panel === 'login' && <Modal title="当前体验资格" onClose={close}><p className="modal-lead">{access.accessRequired ? '当前浏览器已经通过邀请码验证。' : '当前处于免邀请码测试阶段，可直接体验。'}</p><p className="muted">材料与生成结果只保留在当前页面，刷新后不会保存简历正文。</p><button className="button primary full" onClick={close}>继续体验</button></Modal>}
 
     {panel === 'processing' && !busy && <Modal title="简历识别未完成" onClose={close}>
       {file && <p className="file-name">{file.name} · {fileSize(file.size)}</p>}

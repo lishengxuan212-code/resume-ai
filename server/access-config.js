@@ -58,6 +58,7 @@ export function readAccessConfig(env = process.env) {
   return {
     enabled: true,
     production,
+    defaultInviteRequired: boolean(env.INVITE_REQUIRED_DEFAULT, true, 'INVITE_REQUIRED_DEFAULT'),
     enforceInviteQuotas: production || quotaRequested !== 'false',
     dbPath,
     invitePepper: secret(env.INVITE_PEPPER, 'INVITE_PEPPER'),

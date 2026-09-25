@@ -6,6 +6,7 @@ import { AppError } from './errors.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EVENT_RETENTION_MS = 30 * DAY_MS;
+const PUBLIC_INVITE_ID = 'public-preview-access';
 
 function chinaDay(now = Date.now()) {
   return new Date(now + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -191,6 +192,7 @@ export class AccessStore {
     if (!sessionColumns.has('consent_version')) this.db.exec('ALTER TABLE access_sessions ADD COLUMN consent_version TEXT');
     const now = Date.now();
     const defaults = {
+      invite_required: config.defaultInviteRequired,
       default_daily_flow_limit: config.defaultDailyFlowLimit,
       default_total_flow_limit: config.defaultTotalFlowLimit,
       daily_external_alert_yuan: config.dailyAlertMicros / 1_000_000,
@@ -226,6 +228,45 @@ export class AccessStore {
       now,
     );
     return { id, code, expiresAt, dailyFlowLimit: daily, totalFlowLimit: total, tester: Boolean(tester), label: normalizedLabel };
+  }
+
+  createPublicSession() {
+    const now = Date.now();
+    const token = randomBytes(32).toString('base64url');
+    const csrfToken = randomBytes(24).toString('base64url');
+    const expiresAt = now + this.config.sessionTtlMs;
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare(`
+        INSERT INTO invite_codes
+          (id, code_digest, status, expires_at, daily_flow_limit, total_flow_limit, redeemed_at, created_at, label, tester)
+        VALUES (?, ?, 'active', NULL, ?, ?, NULL, ?, ?, 1)
+        ON CONFLICT(id) DO UPDATE SET
+          code_digest = excluded.code_digest, status = 'active', expires_at = NULL,
+          daily_flow_limit = excluded.daily_flow_limit, total_flow_limit = excluded.total_flow_limit,
+          label = excluded.label, tester = 1
+      `).run(
+        PUBLIC_INVITE_ID,
+        digest(this.config.invitePepper, 'PUBLIC-PREVIEW-ACCESS'),
+        this.config.defaultDailyFlowLimit,
+        this.config.defaultTotalFlowLimit,
+        now,
+        '免邀请码测试流量',
+      );
+      this.db.prepare(`
+        INSERT INTO access_sessions (id, token_digest, invite_id, csrf_token, created_at, expires_at, last_seen_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(randomUUID(), digest(this.config.sessionSecret, token), PUBLIC_INVITE_ID, csrfToken, now, expiresAt, now);
+      this.db.exec('COMMIT');
+      return { token, csrfToken, expiresAt };
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  isPublicSession(session) {
+    return session?.invite_id === PUBLIC_INVITE_ID;
   }
 
   redeem(rawCode) {
@@ -456,6 +497,7 @@ export class AccessStore {
   getRuntimeSettings() {
     const rows = Object.fromEntries(this.db.prepare('SELECT key, value FROM runtime_settings').all().map(row => [row.key, row.value]));
     return {
+      inviteRequired: rows.invite_required === undefined ? this.config.defaultInviteRequired : rows.invite_required === 'true',
       defaultDailyFlowLimit: Number(rows.default_daily_flow_limit ?? this.config.defaultDailyFlowLimit),
       defaultTotalFlowLimit: Number(rows.default_total_flow_limit ?? this.config.defaultTotalFlowLimit),
       dailyExternalAlertYuan: Number(rows.daily_external_alert_yuan ?? this.config.dailyAlertMicros / 1_000_000),
@@ -468,6 +510,7 @@ export class AccessStore {
   updateRuntimeSettings(patch, adminUserId) {
     const current = this.getRuntimeSettings();
     const next = {
+      inviteRequired: patch.inviteRequired === undefined ? current.inviteRequired : booleanSetting(patch.inviteRequired, '邀请码策略'),
       defaultDailyFlowLimit: patch.defaultDailyFlowLimit === undefined ? current.defaultDailyFlowLimit : integerSetting(patch.defaultDailyFlowLimit, 1, 100, '每日优化次数'),
       defaultTotalFlowLimit: patch.defaultTotalFlowLimit === undefined ? current.defaultTotalFlowLimit : integerSetting(patch.defaultTotalFlowLimit, 1, 10000, '总优化次数'),
       dailyExternalAlertYuan: patch.dailyExternalAlertYuan === undefined ? current.dailyExternalAlertYuan : integerSetting(patch.dailyExternalAlertYuan, 1, 10000, '费用提醒金额'),
@@ -479,6 +522,7 @@ export class AccessStore {
     }
     const now = Date.now();
     const entries = {
+      invite_required: next.inviteRequired,
       default_daily_flow_limit: next.defaultDailyFlowLimit,
       default_total_flow_limit: next.defaultTotalFlowLimit,
       daily_external_alert_yuan: next.dailyExternalAlertYuan,
@@ -621,11 +665,13 @@ export class AccessStore {
       LEFT JOIN usage_daily t ON t.invite_id = i.id AND t.day = ?
       LEFT JOIN (SELECT invite_id, SUM(optimize_count) AS optimizeTotal FROM usage_daily GROUP BY invite_id) all_usage ON all_usage.invite_id = i.id
       LEFT JOIN (SELECT invite_id, MAX(last_seen_at) AS lastSeenAt FROM access_sessions GROUP BY invite_id) sessions ON sessions.invite_id = i.id
+      WHERE i.id <> ?
       ORDER BY i.created_at DESC
-    `).all(today).map(row => ({ ...row, tester: Boolean(row.tester) }));
+    `).all(today, PUBLIC_INVITE_ID).map(row => ({ ...row, tester: Boolean(row.tester) }));
   }
 
   updateInvite(id, patch, adminUserId) {
+    if (id === PUBLIC_INVITE_ID) throw new AppError(404, 'invite_not_found', '未找到该邀请码。');
     const current = this.db.prepare('SELECT * FROM invite_codes WHERE id = ?').get(id);
     if (!current) throw new AppError(404, 'invite_not_found', '未找到该邀请码。');
     const next = {
@@ -655,6 +701,7 @@ export class AccessStore {
   }
 
   resetInviteToday(id, adminUserId) {
+    if (id === PUBLIC_INVITE_ID) throw new AppError(404, 'invite_not_found', '未找到该邀请码。');
     const invite = this.db.prepare('SELECT id FROM invite_codes WHERE id = ?').get(id);
     if (!invite) throw new AppError(404, 'invite_not_found', '未找到该邀请码。');
     const day = chinaDay();

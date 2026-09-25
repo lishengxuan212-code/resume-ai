@@ -39,11 +39,28 @@ export function createAccessControl(config, store) {
     return store.authenticate(parseCookies(request.headers.cookie)[config.cookieName]);
   }
 
+  function inviteRequired() {
+    return store.getRuntimeSettings().inviteRequired;
+  }
+
+  function publicSessionFor(request, response) {
+    const existing = sessionFor(request);
+    if (store.isPublicSession(existing)) return existing;
+    const result = store.createPublicSession();
+    response.setHeader('Set-Cookie', cookie(config, result.token, Math.floor(config.sessionTtlMs / 1000)));
+    return store.authenticate(result.token);
+  }
+
   function requireAccess(request, response, next) {
-    const session = sessionFor(request);
-    if (!session) return next(new AppError(401, 'access_required', '请输入有效邀请码后继续。'));
-    request.access = session;
-    next();
+    try {
+      const required = inviteRequired();
+      const session = required ? sessionFor(request) : publicSessionFor(request, response);
+      if (!session || required && store.isPublicSession(session)) {
+        return next(new AppError(401, 'access_required', '请输入有效邀请码后继续。'));
+      }
+      request.access = session;
+      next();
+    } catch (error) { next(error); }
   }
 
   function requireCsrf(request, response, next) {
@@ -65,14 +82,21 @@ export function createAccessControl(config, store) {
   return {
     enabled: true,
     status(request, response) {
-      const session = sessionFor(request);
-      response.setHeader('Cache-Control', 'no-store');
-      response.json(session
-        ? { authorized: true, accessRequired: true, csrfToken: session.csrf_token, expiresAt: session.expires_at, privacyAccepted: Boolean(session.consented_at && session.consent_version === PRIVACY_VERSION), ...store.getPublicAccessState(session) }
-        : { authorized: false, accessRequired: true });
+      try {
+        const required = inviteRequired();
+        const session = required ? sessionFor(request) : publicSessionFor(request, response);
+        const authorized = Boolean(session && (!required || !store.isPublicSession(session)));
+        response.setHeader('Cache-Control', 'no-store');
+        response.json(authorized
+          ? { authorized: true, accessRequired: required, csrfToken: session.csrf_token, expiresAt: session.expires_at, privacyAccepted: Boolean(session.consented_at && session.consent_version === PRIVACY_VERSION), ...store.getPublicAccessState(session) }
+          : { authorized: false, accessRequired: true });
+      } catch (error) {
+        response.status(500).json({ error: { code: 'access_status_failed', message: '暂时无法确认体验资格，请稍后重试。' } });
+      }
     },
     redeem(request, response, next) {
       try {
+        if (!inviteRequired()) throw new AppError(409, 'invite_not_required', '当前无需邀请码。');
         const result = store.redeem(request.body?.code);
         response.setHeader('Cache-Control', 'no-store');
         response.setHeader('Set-Cookie', cookie(config, result.token, Math.floor(config.sessionTtlMs / 1000)));
