@@ -18,6 +18,15 @@ function secret(value, name) {
   return normalized;
 }
 
+function boolean(value, fallback, name) {
+  if (value === undefined || value === '') return fallback;
+  const normalized = value.trim().toLowerCase();
+  if (!['true', 'false'].includes(normalized)) {
+    throw new AppError(500, 'access_config_invalid', `${name} 只能设置为 true 或 false。`);
+  }
+  return normalized === 'true';
+}
+
 export function readAccessConfig(env = process.env) {
   const production = env.NODE_ENV === 'production';
   const requested = env.ACCESS_REQUIRED?.trim().toLowerCase();
@@ -36,7 +45,14 @@ export function readAccessConfig(env = process.env) {
   const budgetYuan = integer(env.DAILY_EXTERNAL_BUDGET_YUAN, 10, 1, 10000);
   const alertYuan = integer(env.DAILY_EXTERNAL_ALERT_YUAN, Math.min(5, budgetYuan), 1, budgetYuan);
   const requestCostMicros = integer(env.EXTERNAL_REQUEST_COST_MICROS, 9670, 1, 10_000_000);
-  const dbPath = env.ACCESS_DB_PATH?.trim() || (production ? '/var/lib/resume-app/app.db' : path.resolve('data/resume-app.db'));
+  const pocketBayDataDir = env.POCKETBAY_DATA_DIR?.trim();
+  const dbPath = env.ACCESS_DB_PATH?.trim()
+    || (pocketBayDataDir ? path.join(pocketBayDataDir, 'resume-app.db') : production ? '/var/lib/resume-app/app.db' : path.resolve('data/resume-app.db'));
+  const adminPasswordMinLength = production ? 12 : integer(env.ADMIN_LOCAL_PASSWORD_MIN_LENGTH, 12, 8, 128);
+  const adminBootstrapPassword = env.ADMIN_BOOTSTRAP_PASSWORD || '';
+  if (adminBootstrapPassword && (adminBootstrapPassword.length < 12 || adminBootstrapPassword.length > 128 || Buffer.byteLength(adminBootstrapPassword, 'utf8') > 256)) {
+    throw new AppError(500, 'access_config_invalid', 'ADMIN_BOOTSTRAP_PASSWORD 必须为 12–128 个字符。');
+  }
 
   return {
     enabled: true,
@@ -49,6 +65,10 @@ export function readAccessConfig(env = process.env) {
     adminCookieName: production ? '__Host-resume_admin' : 'resume_admin',
     sessionTtlMs: sessionDays * 24 * 60 * 60 * 1000,
     adminSessionTtlMs: adminSessionHours * 60 * 60 * 1000,
+    adminLocalBypass: !production && boolean(env.ADMIN_LOCAL_BYPASS, false, 'ADMIN_LOCAL_BYPASS'),
+    adminLoginHint: env.ADMIN_LOGIN_HINT?.trim().slice(0, 40) || '',
+    adminPasswordMinLength,
+    adminBootstrapPassword,
     defaultDailyFlowLimit: integer(env.INVITE_DAILY_FLOW_LIMIT, 2, 1, 20),
     defaultTotalFlowLimit: integer(env.INVITE_TOTAL_FLOW_LIMIT, 20, 1, 1000),
     routeLimits: {

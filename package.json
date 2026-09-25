@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "server": "node server/index.js",
+    "start": "node server/index.js",
     "server:dev": "node --env-file=.env server/index.js",
     "invite:create": "node --env-file=.env scripts/create-invite-code.mjs",
     "invite:revoke": "node --env-file=.env scripts/revoke-invite-code.mjs",

@@ -41,8 +41,8 @@ function passwordMatches(password, stored) {
   return safeEqual(scryptSync(password, salt, 32).toString('hex'), expected);
 }
 
-function validPassword(value) {
-  return typeof value === 'string' && value.length >= 12 && value.length <= 128 && Buffer.byteLength(value, 'utf8') <= 256;
+function validPassword(value, minimum = 12) {
+  return typeof value === 'string' && value.length >= minimum && value.length <= 128 && Buffer.byteLength(value, 'utf8') <= 256;
 }
 
 function integerSetting(value, minimum, maximum, name) {
@@ -513,7 +513,8 @@ export class AccessStore {
   }
 
   setupAdmin(password) {
-    if (!validPassword(password)) throw new AppError(400, 'admin_password_invalid', '管理密码至少 12 个字符，且不能超过 128 个字符。');
+    const minimum = this.config.adminPasswordMinLength ?? 12;
+    if (!validPassword(password, minimum)) throw new AppError(400, 'admin_password_invalid', `管理密码至少 ${minimum} 个字符，且不能超过 128 个字符。`);
     if (this.hasAdmin()) throw new AppError(409, 'admin_exists', '管理员已经创建。');
     const now = Date.now();
     const id = randomUUID();
@@ -524,7 +525,8 @@ export class AccessStore {
   }
 
   resetAdminPassword(password) {
-    if (!validPassword(password)) throw new AppError(400, 'admin_password_invalid', '管理密码至少 12 个字符，且不能超过 128 个字符。');
+    const minimum = this.config.adminPasswordMinLength ?? 12;
+    if (!validPassword(password, minimum)) throw new AppError(400, 'admin_password_invalid', `管理密码至少 ${minimum} 个字符，且不能超过 128 个字符。`);
     const admin = this.db.prepare('SELECT id FROM admin_users WHERE username = ?').get('admin');
     if (!admin) return this.setupAdmin(password);
     const now = Date.now();

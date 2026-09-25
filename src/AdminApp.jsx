@@ -42,7 +42,7 @@ function ErrorNotice({ message, onClose }) {
   return <div className="admin-notice is-error" role="alert"><span>{message}</span>{onClose && <button type="button" onClick={onClose}>关闭</button>}</div>;
 }
 
-function AuthScreen({ setupRequired, onAuthenticated }) {
+function AuthScreen({ setupRequired, minimumPasswordLength = 12, loginHint = '', onAuthenticated }) {
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [error, setError] = useState('');
@@ -63,11 +63,12 @@ function AuthScreen({ setupRequired, onAuthenticated }) {
     <form className="admin-auth" onSubmit={submit}>
       <p className="admin-eyebrow">运营控制台</p>
       <h1>{setupRequired ? '创建管理密码' : '登录控制台'}</h1>
-      <p>{setupRequired ? '这是本机首次进入。密码只保存为不可逆摘要，至少 12 个字符。' : '使用独立管理密码查看用量并调整运行设置。'}</p>
-      <label>管理密码<input type="password" autoComplete={setupRequired ? 'new-password' : 'current-password'} minLength={12} maxLength={128} value={password} onChange={event => setPassword(event.target.value)} required autoFocus /></label>
-      {setupRequired && <label>再次输入<input type="password" autoComplete="new-password" minLength={12} maxLength={128} value={confirmation} onChange={event => setConfirmation(event.target.value)} required /></label>}
+      <p>{setupRequired ? `这是本机首次进入。密码只保存为不可逆摘要，至少 ${minimumPasswordLength} 个字符。` : '使用独立管理密码查看用量并调整运行设置。'}</p>
+      {loginHint && <p className="admin-login-hint">提示：{loginHint}</p>}
+      <label>管理密码<input type="password" autoComplete={setupRequired ? 'new-password' : 'current-password'} minLength={minimumPasswordLength} maxLength={128} value={password} onChange={event => setPassword(event.target.value)} required autoFocus /></label>
+      {setupRequired && <label>再次输入<input type="password" autoComplete="new-password" minLength={minimumPasswordLength} maxLength={128} value={confirmation} onChange={event => setConfirmation(event.target.value)} required /></label>}
       <ErrorNotice message={error} />
-      <button className="admin-primary" type="submit" disabled={busy || password.length < 12 || setupRequired && confirmation.length < 12}>{busy ? '正在处理' : setupRequired ? '创建并进入' : '登录'}</button>
+      <button className="admin-primary" type="submit" disabled={busy || password.length < minimumPasswordLength || setupRequired && confirmation.length < minimumPasswordLength}>{busy ? '正在处理' : setupRequired ? '创建并进入' : '登录'}</button>
       <a className="admin-back" href="/">返回简历首页</a>
     </form>
   </main>;
@@ -279,7 +280,7 @@ export function AdminApp() {
   }, [auth.authenticated, page, days, filters.operation, filters.status]);
 
   if (auth.loading) return <div className="admin-loading-screen">正在打开运营控制台…</div>;
-  if (!auth.authenticated) return <AuthScreen setupRequired={auth.setupRequired} onAuthenticated={() => void check()} />;
+  if (!auth.authenticated) return <AuthScreen setupRequired={auth.setupRequired} minimumPasswordLength={auth.minimumPasswordLength} loginHint={auth.loginHint} onAuthenticated={() => void check()} />;
   const content = page === 'overview' ? <Overview data={data} days={days} onDays={setDays} />
     : page === 'invites' ? <Invites data={data} onReload={() => void load('invites')} />
       : page === 'calls' ? <Calls data={data?.calls} filters={filters} onFilters={setFilters} />

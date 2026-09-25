@@ -25,14 +25,14 @@ npm run invite:create -- --count=1
 npm run dev:full
 ```
 
-本地运营控制台是独立页面，访问 `/admin.html` 即可直接进入，本机测试不要求管理密码。公开部署时必须先在服务器上运行 `npm run admin:create` 创建管理员；管理密码至少 12 个字符，只保存不可逆摘要。
+本地运营控制台是独立页面，访问 `/admin.html` 后使用管理密码登录。`ADMIN_LOGIN_HINT` 可配置登录提示，不能填写可推导出密码的内容；生产环境强制密码至少 12 个字符，密码只保存为不可逆摘要。`ADMIN_LOCAL_BYPASS=true` 仅供临时本机排查，日常验证应保持关闭。
 
 该命令同时启动 Vite 页面和本地 Node API 服务；其中 `server:dev` 会通过 `--env-file=.env` 读取刚才创建的配置，开发时 Vite 会把 `/api` 转发给本地 Node 服务。供应商密钥只存在于 Node 服务的环境变量中，浏览器代码不会读取它们。不要把密钥提交到 Git，也不要将密钥粘贴到聊天、Issue 或截图中。
 
 生产环境应由部署平台安全地注入同一组环境变量，并运行不读取本地文件的通用服务命令：
 
 ```sh
-npm run server
+npm start
 ```
 
 ## 当前功能与边界
@@ -77,7 +77,7 @@ npm run test:sites
 
 Vite 和 Worker 的静态托管无法运行 Node 的文档识别、模型调用或 PDF 服务。生产环境必须部署独立的 Node 进程，并通过同域部署或正确的反向代理为前端提供 `/api`；不能只发布 `dist/client` 后期待这些接口可用。
 
-最终生产平台尚未确定。无论选择哪家平台，Node 生产进程都应绑定内部地址，由同域 HTTPS 网关反向代理 `/api`，并只发布构建后的前端文件；不要把 Vite 开发服务器直接暴露到公网。
+计划使用 PocketBay 部署。项目在生产环境由一个 Node 进程同时提供构建后的前端页面与 `/api`，监听平台注入的 `PORT` 并绑定 `0.0.0.0`；SQLite 自动写入 PocketBay 提供的 `POCKETBAY_DATA_DIR` 持久化目录。部署配置模板位于 `deploy/pocketbay.env.example`，实际密钥与生产管理密码必须在 PocketBay 配置确认页填写，不能提交到 Git。不要把 Vite 开发服务器直接暴露到公网。
 
 ## AI 生成故障排查
 

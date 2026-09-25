@@ -16,6 +16,8 @@ import { buildConservativeResume } from './conservative-resume.js';
 import { createAccessControl } from './access-control.js';
 import { createAdminControl } from './admin-control.js';
 import { ConcurrencyGate, createWindowLimiter } from './request-limits.js';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 
 const PROVIDERS = new Set(["openai", "deepseek", "qwen"]);
 
@@ -67,7 +69,7 @@ function securityHeaders(production) {
   };
 }
 
-export function createApp({ config, configError, fetchImpl, services, accessControl, adminControl, accessConfig, logger = console } = {}) {
+export function createApp({ config, configError, fetchImpl, services, accessControl, adminControl, accessConfig, staticDir, logger = console } = {}) {
   const app = express();
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } });
   const access = accessControl ?? createAccessControl({ enabled: false });
@@ -80,7 +82,7 @@ export function createApp({ config, configError, fetchImpl, services, accessCont
   const exportGate = new ConcurrencyGate({ limit: 2, queueLimit: 12, timeoutMs: 15_000 });
 
   app.disable('x-powered-by');
-  app.set('trust proxy', 'loopback');
+  app.set('trust proxy', accessConfig?.production ? 1 : 'loopback');
   app.use((request, response, next) => {
     request.requestId = randomUUID();
     response.setHeader('X-Request-ID', request.requestId);
@@ -223,6 +225,14 @@ export function createApp({ config, configError, fetchImpl, services, accessCont
     void request;
     response.status(404).json({ error: { code: 'not_found', message: '接口不存在。' } });
   });
+
+  if (staticDir && existsSync(staticDir)) {
+    app.use(express.static(staticDir, { index: 'index.html', maxAge: '1h' }));
+    app.use((request, response, next) => {
+      if (!['GET', 'HEAD'].includes(request.method)) return next();
+      response.sendFile(path.resolve(staticDir, 'index.html'), error => error ? next(error) : undefined);
+    });
+  }
 
   app.use((error, request, response, next) => {
     void next;

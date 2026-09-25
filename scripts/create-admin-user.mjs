@@ -34,7 +34,7 @@ async function hiddenQuestion(label) {
 
 const config = readAccessConfig(process.env);
 if (!config.enabled) throw new Error('请先启用 ACCESS_REQUIRED。');
-const first = await hiddenQuestion('请输入管理密码（至少 12 个字符）：');
+const first = await hiddenQuestion(`请输入管理密码（至少 ${config.adminPasswordMinLength ?? 12} 个字符）：`);
 const second = await hiddenQuestion('请再次输入管理密码：');
 if (first !== second) throw new Error('两次输入的密码不一致。');
 const store = new AccessStore(config);

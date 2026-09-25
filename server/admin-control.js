@@ -58,7 +58,7 @@ export function createAdminControl(config, store) {
   }
 
   function localAccess(request) {
-    return !config.production && loopback(request) && localHost(request);
+    return config.adminLocalBypass === true && !config.production && loopback(request) && localHost(request);
   }
 
   function signedIn(response, result) {
@@ -97,7 +97,12 @@ export function createAdminControl(config, store) {
       response.setHeader('Cache-Control', 'no-store');
       response.json(session
         ? { authenticated: true, setupRequired: false, csrfToken: session.csrf_token, expiresAt: session.expires_at }
-        : { authenticated: false, setupRequired: !store.hasAdmin() && !config.production && loopback(request) });
+        : {
+          authenticated: false,
+          setupRequired: !store.hasAdmin() && !config.production && loopback(request),
+          minimumPasswordLength: config.adminPasswordMinLength ?? 12,
+          loginHint: config.adminLoginHint || '',
+        });
     },
     setup(request, response, next) {
       try {
