@@ -29,7 +29,7 @@ npm run dev:full
 
 该命令同时启动 Vite 页面和本地 Node API 服务；其中 `server:dev` 会通过 `--env-file=.env` 读取刚才创建的配置，开发时 Vite 会把 `/api` 转发给本地 Node 服务。供应商密钥只存在于 Node 服务的环境变量中，浏览器代码不会读取它们。不要把密钥提交到 Git，也不要将密钥粘贴到聊天、Issue 或截图中。
 
-生产环境应由部署平台安全地注入同一组环境变量，并运行不读取本地文件的通用服务命令：
+PocketBay 会把授权的 `.env` 按原路径只读挂载；生产启动命令会读取该文件，同时保留平台注入的 `PORT` 与 `POCKETBAY_DATA_DIR`：
 
 ```sh
 npm start
