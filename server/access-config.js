@@ -28,7 +28,8 @@ function boolean(value, fallback, name) {
 }
 
 export function readAccessConfig(env = process.env) {
-  const production = env.NODE_ENV === 'production';
+  const pocketBayDataDir = env.POCKETBAY_DATA_DIR?.trim();
+  const production = env.NODE_ENV === 'production' || Boolean(pocketBayDataDir);
   const requested = env.ACCESS_REQUIRED?.trim().toLowerCase();
   if (requested && !['true', 'false'].includes(requested)) {
     throw new AppError(500, 'access_config_invalid', 'ACCESS_REQUIRED 只能设置为 true 或 false。');
@@ -45,9 +46,9 @@ export function readAccessConfig(env = process.env) {
   const budgetYuan = integer(env.DAILY_EXTERNAL_BUDGET_YUAN, 10, 1, 10000);
   const alertYuan = integer(env.DAILY_EXTERNAL_ALERT_YUAN, Math.min(5, budgetYuan), 1, budgetYuan);
   const requestCostMicros = integer(env.EXTERNAL_REQUEST_COST_MICROS, 9670, 1, 10_000_000);
-  const pocketBayDataDir = env.POCKETBAY_DATA_DIR?.trim();
-  const dbPath = env.ACCESS_DB_PATH?.trim()
-    || (pocketBayDataDir ? path.join(pocketBayDataDir, 'resume-app.db') : production ? '/var/lib/resume-app/app.db' : path.resolve('data/resume-app.db'));
+  const dbPath = pocketBayDataDir
+    ? path.join(pocketBayDataDir, 'resume-app.db')
+    : env.ACCESS_DB_PATH?.trim() || (production ? '/var/lib/resume-app/app.db' : path.resolve('data/resume-app.db'));
   const adminPasswordMinLength = production ? 12 : integer(env.ADMIN_LOCAL_PASSWORD_MIN_LENGTH, 12, 8, 128);
   const adminBootstrapPassword = env.ADMIN_BOOTSTRAP_PASSWORD || '';
   if (adminBootstrapPassword && (adminBootstrapPassword.length < 12 || adminBootstrapPassword.length > 128 || Buffer.byteLength(adminBootstrapPassword, 'utf8') > 256)) {
