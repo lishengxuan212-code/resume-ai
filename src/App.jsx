@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FileArrowUp } from '@phosphor-icons/react';
+import { FileArrowUp, FilePdf } from '@phosphor-icons/react';
 import '@fontsource/noto-serif-sc/400.css';
 import { Modal } from './Modal';
 import { validateFile, fileSize } from './intake';
@@ -10,6 +10,7 @@ import { DiagnosisPage } from './DiagnosisPage';
 import { LoadingOverlay } from './LoadingOverlay';
 import { ResultPage } from './ResultPage';
 import { makeAvatarDataUrl, makeAvatarDataUrlFromSource } from './avatar';
+import { TemplateLibrary } from './TemplateLibrary';
 
 const emptyOnlineFacts = () => ({
   name: '', contact: '', education: [],
@@ -54,6 +55,7 @@ export function App() {
   const [inviteCode, setInviteCode] = useState('');
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
   const [consentSubmitting, setConsentSubmitting] = useState(false);
+  const [templateOrigin, setTemplateOrigin] = useState(null);
   const busy = status === 'extracting' || status === 'diagnosing' || status === 'optimizing' || downloading;
   const statusText = status === 'extracting' ? '正在识别简历' : status === 'diagnosing' ? '正在按方法论检查材料' : status === 'optimizing' ? '正在优化简历' : downloading ? '正在生成 PDF' : status === 'error' ? error : notice || ({ idle: '请选择简历或在线填写。', reviewing: '请核对并编辑简历事实。', diagnosed: '材料诊断已完成，可以补充回答或直接优化。', ready: '简历优化已完成，可以查看结果并下载 PDF。' }[status]);
   const close = () => setPanel(null);
@@ -183,6 +185,7 @@ export function App() {
     finally { operation.current = false; setDownloading(false); }
   }
   const resumePanel = () => setPanel(resume ? 'result' : facts ? 'review' : 'processing');
+  const openTemplates = origin => { setTemplateOrigin(origin); setPanel('templates'); };
   const beginOnlineReview = () => { setFile(null); beginReview(emptyOnlineFacts(), ''); };
   const loading = busy ? <LoadingOverlay key={downloading ? 'downloading' : status} stage={downloading ? 'downloading' : status} /> : null;
   const quotaExhausted = access.quota?.enforced && (access.quota.dailyRemaining <= 0 || access.quota.totalRemaining <= 0);
@@ -212,10 +215,11 @@ export function App() {
   </div>;
 
   const fileInput = (<input className="visually-hidden" type="file" accept=".pdf,.docx" ref={inputRef} tabIndex={-1} disabled={busy} aria-label="选择简历文件" onChange={e => { if (e.target.files?.[0]) void selectFile(e.target.files[0]); e.target.value = ''; }} />);
+  if (panel === 'templates') return <><TemplateLibrary fileInput={fileInput} privacyAccepted={Boolean(access.privacyAccepted)} consentSubmitting={consentSubmitting} onAcceptPrivacy={confirmPrivacy} onUse={chooseFile} onBack={() => setPanel(templateOrigin)} />{loading}</>;
   if (panel === 'review' && facts) return <>{runtimeNotice}<ReviewPage
     facts={facts} targetRole={targetRole} file={file} fileInput={fileInput} busy={busy}
     status={status} statusText={statusText} config={config} configLoading={configLoading} configError={configError}
-    onBack={close} onChooseFile={chooseFile} onFacts={editFacts}
+    onBack={close} onChooseFile={chooseFile} onOpenTemplates={() => openTemplates('review')} onFacts={editFacts}
     onTargetRole={value => { setTargetRole(value); setNotice(''); setResume(null); }}
     jobDescription={jobDescription} onJobDescription={value => { setJobDescription(value); setNotice(''); setDiagnosis(null); setResume(null); }}
     onEntry={(collection, index, patch) => { try { editFacts(updateReviewedEntry(facts, collection, index, patch)); } catch (issue) { fail(issue); } }}
@@ -225,13 +229,14 @@ export function App() {
     optimizationUnavailable={optimizationUnavailable} optimizationMessage={optimizationMessage}
   />{loading}</>;
 
-  if (panel === 'diagnosis' && diagnosis) return <>{runtimeNotice}<DiagnosisPage diagnosis={diagnosis} busy={busy} statusText={statusText} error={status === 'error' ? error : ''} optimizationUnavailable={optimizationUnavailable} optimizationMessage={optimizationMessage} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onOptimize={(answers, skip) => void runOptimization(answers, skip)} />{loading}</>;
+  if (panel === 'diagnosis' && diagnosis) return <>{runtimeNotice}<DiagnosisPage diagnosis={diagnosis} facts={facts} busy={busy} statusText={statusText} error={status === 'error' ? error : ''} optimizationUnavailable={optimizationUnavailable} optimizationMessage={optimizationMessage} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onOptimize={(answers, skip) => void runOptimization(answers, skip)} />{loading}</>;
 
   if (panel === 'result' && resume && facts) return <>{runtimeNotice}<ResultPage facts={facts} resume={resume} busy={busy} downloading={downloading} status={status} statusText={statusText} presentation={presentation} onAvatarFile={async file => { try { setPresentation({ avatarDataUrl: await makeAvatarDataUrl(file) }); setPreviewPdf(null); setError(''); setNotice('头像已更新，请重新生成 PDF 预览。'); } catch (issue) { setError(''); setNotice(issue.message); } }} onRemoveAvatar={() => { setPresentation({ avatarDataUrl: '' }); setPreviewPdf(null); setNotice('头像已移除，请重新生成 PDF 预览。'); }} onFacts={next => { setFacts(next); setPreviewPdf(null); setNotice('修改已保存，请重新生成 PDF 预览。'); setError(''); setStatus('ready'); }} onResume={next => { setResume(next); setPreviewPdf(null); setNotice('修改已保存，请重新生成 PDF 预览。'); setError(''); setStatus('ready'); }} onBack={() => { setError(''); setStatus('reviewing'); setPanel('review'); }} onDownload={{ download, setPreviewPdf }} />{loading}</>;
 
   return <div className="page">
     {runtimeNotice}
     <header className="site-header"><a className="wordmark" href="/" aria-label="简历首页">简历</a><button className="login-link" onClick={() => setPanel('login')}>{access.accessRequired ? '内测体验中' : '免邀请码体验'}</button></header>
+    <button className="template-rail-tab" type="button" onClick={() => openTemplates(null)}><FilePdf size={18} /><span>模板库</span></button>
     <main className="hero">
       <div className="offer-stage" aria-hidden="true"><img className="offer-image" src="/assets/offer.png" alt="" width="1254" height="1254" fetchPriority="high" /></div>
       <h1><span>心仪的工作，</span><span>从好简历开始。</span></h1>
@@ -243,7 +248,10 @@ export function App() {
             <FileArrowUp className="upload-icon" size={57} weight="thin" aria-hidden="true" />
             <span className="upload-copy"><strong>{dragging ? '松开，选择这份简历' : file ? file.name : '上传你的简历'}</strong><span>{file ? `${status === 'extracting' ? '正在识别' : '已选择'} · ${fileSize(file.size)}` : '点击选择，或拖拽文件到这里'}</span></span>
           </button>
-          <button className="button primary upload-button" type="button" onClick={chooseFile} disabled={busy || !access.privacyAccepted}>{file ? '更换文件' : '上传简历'}</button>
+          <div className="upload-actions">
+            <button className="button secondary template-upload-button" type="button" onClick={() => openTemplates(null)} disabled={busy}><FilePdf size={18} /><span>简历模板</span></button>
+            <button className="button primary upload-button" type="button" onClick={chooseFile} disabled={busy || !access.privacyAccepted}>{file ? '更换文件' : '上传简历'}</button>
+          </div>
         </div>
         <label className="privacy-consent"><input type="checkbox" checked={Boolean(access.privacyAccepted)} disabled={consentSubmitting || access.privacyAccepted} onChange={event => { if (event.target.checked) void confirmPrivacy(); }} /><span>我已阅读并同意<a href="/privacy.html" target="_blank" rel="noreferrer">隐私说明</a>，了解简历文字会用于当前处理并发送至第三方文本处理平台。</span></label>
         <p className={status === 'idle' || panel ? 'visually-hidden' : status === 'error' ? 'error' : 'processing-status'} aria-live="polite" aria-atomic="true">{statusText}</p>

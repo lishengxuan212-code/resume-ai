@@ -1,6 +1,32 @@
 # Homepage Design QA
 
-final result: blocked
+final result: passed
+
+## 2026-09-26 annotated diagnosis and requirement coverage
+
+- Audit finding: the previous diagnosis separated findings, suggested changes and follow-up questions from the resume material, forcing users to perform the mapping themselves. Equal-weight cards also hid which source passage each issue affected.
+- Implemented a two-column annotation workspace: reviewed resume blocks on the left and a sticky comment rail on the right. Exact quoted matches are highlighted; source-linked but non-exact findings are explicitly labelled as whole-entry issues; unresolved findings are grouped as whole-resume annotations.
+- Linked fact questions now live inside the related annotation, with the conservative suggestion and answer field together. All questions remain optional and the skip-all path remains available.
+- Replaced the broad role-association summary with per-requirement evidence coverage. Version 0.2 records source metadata and makes the finite sample boundary visible. A user-provided job description counts as one target sample; without it, the interface states that the offline baseline cannot represent most employers.
+- Official ByteDance role pages found during source review were already offline on 2026-09-26, so their requirements were not silently promoted into the current evidence library. This preserves the distinction between a current verified requirement and an archived job title.
+- Verification: focused career/diagnosis/methodology/API tests passed 24/24; production build passed; Sites packaging passed 4/4; `git diff --check` reported no whitespace errors. A live synthetic diagnosis displayed knowledge version 0.2, three requirement rows, explicit finite-sample copy, exact-phrase highlighting and linked comments. Marker-to-comment navigation was exercised in the in-app browser.
+- Repository-wide tests remain at 232 passes and 11 failures. The failures are the previously recorded extraction punctuation, corrupted-DOCX wording, provider-quality/spacing and validation-boundary expectations; none are in the new career-knowledge or diagnosis tests, so this change is verified on its altered surfaces without claiming a clean full suite.
+
+## 2026-09-26 annotation ordering correction
+
+- User review found that the right-edge marker stack was ordered by model output rather than resume position, and coarse page-level source IDs placed unrelated issues beside education or the wrong work paragraph.
+- Removed the standalone `岗位要求覆盖` card from the diagnosis page.
+- Visual placement now requires an exact quoted-text match or a strong line-level text overlap. Source IDs only help confirm a match and cannot place a marker by themselves. Unmatched issues remain in the whole-resume annotation group.
+- Annotation numbers are recalculated after visual-position sorting, so both the resume and comment rail follow the same top-to-bottom order. Pins render inline after the matched phrase or line instead of in a detached full-entry gutter.
+- Browser verification on the current diagnosis state confirmed nine comments in order: education has no misplaced marker, marker 5 opens the numeric-evidence comment and highlights its source phrase, and marker 9 opens the final skills comment and highlights the matching skill label.
+- Focused tests passed 24/24; the production build passed; Sites packaging passed 4/4; `git diff --check` found no whitespace errors beyond Windows line-ending notices.
+
+## 2026-09-27 annotation rail visibility and alignment
+
+- Kept the rail heading outside the independently scrollable comment list so `问题与修改方向` remains fully visible.
+- Resume annotation clicks now scroll only the right-hand list and align the matching card 16 px below its top edge. They no longer use centered `scrollIntoView`, which previously moved the page and exposed the middle of the selected card.
+- Browser verification clicked annotation 5 from the resume: its source phrase remained visible, comment 5 became the first card under the intact rail heading, and the linked questions followed below it.
+- Focused diagnosis/career/API tests passed 24/24; production build passed; Sites packaging passed 4/4; `git diff --check` found no whitespace errors beyond Windows line-ending notices.
 
 ## Source and state
 
@@ -147,3 +173,17 @@ Real OpenAI, DeepSeek, or Qwen success was not verified in this run because no u
 - Browser regression passed 8/8. The reviewed `result-desktop.png` shows the exact inline skill presentation and the unchanged wide result workspace. Core tests passed 223/223, including the overall three-call retry budget, 12-question boundary, generic skill-title rejection and PDF inline skill output. The production build and Sites packaging tests passed 4/4; `git diff --check` reported only Windows line-ending notices and no whitespace errors.
 - A live synthetic DeepSeek `deepseek-flash` run completed in 3,449 milliseconds and one provider call. The final AI output used `原型与流程梳理：…` and `数据整理与表格处理：…`, omitted internal tools, retained the fixed `技能` section name, and exported a valid 57,310-byte PDF. This confirms the ordinary real-service path after the stricter prompt; the two-retry failure branch is covered deterministically rather than by intentionally inducing a live provider failure. No user resume was sent.
 - The refreshed network-enabled backend remains available at `http://localhost:5173/` through the existing Vite proxy.
+
+## 2026-09-26 V2.0 template library and career-context slice
+
+- Current result: passed. This browser pass supersedes the historical infrastructure blocker at the top of this file; the earlier entry remains as history.
+- Visual source of truth: `docs/selected-homepage.png` for the homepage and the existing wide review/diagnosis workspace for secondary pages. The new side tab preserves the approved black homepage hero, Song-style typography, static copy and OFFER composition. The template library uses the same black, restrained card and gold-accent system without introducing a competing visual theme.
+- Template preview: the library renders `public/assets/recommended-template-preview.pdf`, generated from fictional data through the real enabled `recommended` renderer. The sample now includes a locally generated fictional square portrait in the upper-right identity area. A 144 DPI rendered-page inspection confirmed that the portrait crop is sharp, the name/contact block remains aligned, education stays directly below, and no text is clipped or overlapped. The browser displayed the same updated white A4 page; this is not a CSS wireframe or a fixed one-page promise.
+- Desktop browser flow: homepage `模板库` -> rendered template -> `使用此模板并上传简历` -> synthetic `tests/fixtures/resume.pdf` -> full material-review workspace. From review, `查看模板` reopened the library and `返回` restored the same uploaded review state. A fresh browser session reported no console warnings or errors after the round trip.
+- Homepage discovery: the upload panel now places a secondary `简历模板` button immediately to the left of the primary `上传简历` action while retaining the side `模板库` entry. Both open the same library. Desktop inspection confirmed clear primary/secondary hierarchy; at 390 x 844 the two actions remain equal-width on one row without horizontal overflow. The new-button jump was exercised in the browser and the console remained clean.
+- Responsive review: the template page was also visually inspected at a 390 x 844 viewport. The preview and detail panel stacked without horizontal overflow, and the primary action remained reachable. The viewport override was reset after the check.
+- Accessibility and copy: page headings receive focus on entry; upload and return actions are real buttons; the template sample has an accessible page label; privacy consent remains required; copy states that the sample is fictional and that page count/content density vary with real material.
+- Career-context presentation: a synthetic online-fill diagnosis visibly separated direct evidence, transferable evidence and missing evidence, with conservative language and source details. Candidate directions are explicitly presented as references rather than definitive career conclusions or numeric fit scores.
+- Verification: focused career/methodology/diagnosis tests passed 10/10; broader changed-surface tests passed 23/23; production build passed; Sites packaging passed 4/4; `git diff --check` found no whitespace errors. The repository-wide suite currently has 231 passes and 11 failures in older extraction, provider-quality, spacing and validation-boundary expectations; none of those failing source areas were changed by this slice, so this QA result is limited to the V2.0 surfaces above rather than claiming a clean full suite.
+
+final result: passed

@@ -18,6 +18,7 @@ import { createAdminControl } from './admin-control.js';
 import { ConcurrencyGate, createWindowLimiter } from './request-limits.js';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { buildCareerContext } from './career-knowledge/index.js';
 
 const PROVIDERS = new Set(["openai", "deepseek", "qwen"]);
 
@@ -160,7 +161,7 @@ export function createApp({ config, configError, fetchImpl, services, accessCont
         throw safeProviderError(error);
       }
       const diagnosis = validateDiagnosis(generated, input.facts, generated.provider ?? config.provider, generated.model ?? config.model, { ruleIds: input.ruleIds });
-      response.json({ diagnosis: publicResult(diagnosis) });
+      response.json({ diagnosis: publicResult({ ...diagnosis, careerContext: buildCareerContext(input) }) });
     } catch (error) { next(error); }
   });
 

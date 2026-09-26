@@ -1,6 +1,6 @@
 {
   "name": "resume-home",
-  "version": "0.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -17,7 +17,7 @@
     "dev:full": "concurrently \"npm run dev\" \"npm run server:dev\"",
     "build": "vite build && node scripts/prepare-sites-build.mjs",
     "preview": "vite preview",
-    "test": "node --test tests/intake.test.mjs tests/server-config.test.mjs tests/server-app.test.mjs tests/server-env-startup.test.mjs tests/document-validation.test.mjs tests/extract-document.test.mjs tests/extract-api.test.mjs tests/providers.test.mjs tests/resume-validation.test.mjs tests/optimize-api.test.mjs tests/export-pdf.test.mjs tests/export-api.test.mjs tests/resume-state.test.mjs tests/api.test.mjs tests/full-flow.test.mjs tests/provider-deadline.test.mjs tests/methodology.test.mjs tests/diagnosis.test.mjs tests/optimization-quality.test.mjs tests/methodology-scenarios.test.mjs",
+    "test": "node --test tests/intake.test.mjs tests/server-config.test.mjs tests/server-app.test.mjs tests/server-env-startup.test.mjs tests/document-validation.test.mjs tests/extract-document.test.mjs tests/extract-api.test.mjs tests/providers.test.mjs tests/resume-validation.test.mjs tests/optimize-api.test.mjs tests/export-pdf.test.mjs tests/export-api.test.mjs tests/resume-state.test.mjs tests/api.test.mjs tests/full-flow.test.mjs tests/provider-deadline.test.mjs tests/methodology.test.mjs tests/diagnosis.test.mjs tests/optimization-quality.test.mjs tests/methodology-scenarios.test.mjs tests/career-knowledge.test.mjs",
     "test:sites": "node --test tests/sites-worker.test.mjs"
   },
   "dependencies": {
@@ -33,7 +33,7 @@
     "pdfkit": "^0.20.2",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "vite": "6.4.2"
+    "vite": "6.4.3"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

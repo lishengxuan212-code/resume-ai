@@ -48,7 +48,8 @@ export function createResumeApi(dependencies = {}) {
     extractResume(file) {
       const body = new FormData();
       body.append('resume', file);
-      return json('/api/extract', { method: 'POST', headers: csrfHeaders(), body });
+      const headers = csrfHeaders();
+      return json('/api/extract', { method: 'POST', ...(Object.keys(headers).length ? { headers } : {}), body });
     },
     diagnoseResume: (facts, targetRole, jobDescription = '') => json('/api/diagnose', post({ facts, targetRole, jobDescription })),
     optimizeResume: (facts, targetRole, options = {}) => {

@@ -89,11 +89,11 @@ function PdfPage({ document, TextLayer: PdfTextLayer, pageNumber, scale }) {
   return <div className="resume-preview-page" ref={pageRef} aria-label={`简历第 ${pageNumber} 页`}><canvas ref={canvasRef} /><div className="resume-preview-text-layer" ref={textRef} aria-hidden="true" />{!visible && <span className="resume-preview-page-placeholder">滚动到此处加载第 {pageNumber} 页</span>}{error && <span className="resume-preview-page-error">{error}</span>}</div>;
 }
 
-function PdfDocument({ blob, modal = false }) {
+export function PdfDocument({ blob, modal = false, sample = false }) {
   const [document, setDocument] = useState(null);
   const [pdfjs, setPdfjs] = useState(null);
   const [error, setError] = useState('');
-  const [scale, setScale] = useState(modal ? 1 : 1.13);
+  const [scale, setScale] = useState(sample ? 1 : modal ? 1 : 1.13);
   useEffect(() => {
     let cancelled = false;
     let loadingTask;
@@ -106,7 +106,7 @@ function PdfDocument({ blob, modal = false }) {
         setPdfjs(module);
         loadingTask = module.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) });
         const next = await loadingTask.promise;
-        if (cancelled) { await next.destroy(); return; }
+        if (cancelled) { await next.destroy?.(); return; }
         loadedDocument = next;
         setDocument(next);
         setError('');
@@ -115,11 +115,11 @@ function PdfDocument({ blob, modal = false }) {
       }
     };
     void load();
-    return () => { cancelled = true; loadingTask?.destroy(); loadedDocument?.destroy(); };
+    return () => { cancelled = true; loadingTask?.destroy?.(); loadedDocument?.destroy?.(); };
   }, [blob]);
   if (error) return <div className="resume-preview-message" role="alert"><WarningCircle size={20} /><span>{error}</span></div>;
   if (!document || !pdfjs) return <div className="resume-preview-message"><FilePdf size={20} /><span>正在准备 PDF 页面。</span></div>;
-  return <div className={`resume-preview-viewer ${modal ? 'is-modal-viewer' : ''}`}><div className="resume-preview-zoom" aria-label="预览缩放"><button type="button" aria-label="缩小预览" onClick={() => setScale(current => Math.max(0.8, Number((current - 0.12).toFixed(2))))}><Minus size={15} /></button><span>{Math.round(scale * 100)}%</span><button type="button" aria-label="放大预览" onClick={() => setScale(current => Math.min(1.5, Number((current + 0.12).toFixed(2))))}><Plus size={15} /></button></div><div className="resume-preview-pages">{Array.from({ length: document.numPages }, (_, index) => <PdfPage key={`${document.fingerprint}-${index + 1}-${scale}`} document={document} TextLayer={pdfjs.TextLayer} pageNumber={index + 1} scale={scale} />)}</div></div>;
+  return <div className={`resume-preview-viewer ${modal ? 'is-modal-viewer' : ''} ${sample ? 'is-template-sample' : ''}`}>{!sample && <div className="resume-preview-zoom" aria-label="预览缩放"><button type="button" aria-label="缩小预览" onClick={() => setScale(current => Math.max(0.8, Number((current - 0.12).toFixed(2))))}><Minus size={15} /></button><span>{Math.round(scale * 100)}%</span><button type="button" aria-label="放大预览" onClick={() => setScale(current => Math.min(1.5, Number((current + 0.12).toFixed(2))))}><Plus size={15} /></button></div>}<div className="resume-preview-pages">{Array.from({ length: document.numPages }, (_, index) => <PdfPage key={`${document.fingerprint}-${index + 1}-${scale}`} document={document} TextLayer={pdfjs.TextLayer} pageNumber={index + 1} scale={scale} />)}</div></div>;
 }
 
 function PreviewModal({ preview, onClose, onDownload }) {

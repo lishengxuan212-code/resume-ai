@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowUpRight, FileText, Plus, Trash } from '@phosphor-icons/
 import { ReadableEditor, RequiredMark } from './ReadableEditor';
 
 const sections = [['basics', '基本资料'], ['education', '教育背景'], ['work', '工作经历'], ['skills', '技能'], ['sources', '来源原文']];
-export function ReviewPage({ facts, targetRole, jobDescription, file, fileInput, busy, status, statusText, config, configLoading, configError, optimizationUnavailable, optimizationMessage, onBack, onChooseFile, onFacts, onTargetRole, onJobDescription, onSkills, onEntry, onRemoveEntry, onSave, onDiagnose, onReadConfig }) {
+export function ReviewPage({ facts, targetRole, jobDescription, file, fileInput, busy, status, statusText, config, configLoading, configError, optimizationUnavailable, optimizationMessage, onBack, onChooseFile, onOpenTemplates, onFacts, onTargetRole, onJobDescription, onSkills, onEntry, onRemoveEntry, onSave, onDiagnose, onReadConfig }) {
   const heading = useRef(null);
   useEffect(() => { window.scrollTo(0, 0); heading.current?.focus({ preventScroll: true }); }, []);
   const addEntry = collection => onFacts({ ...facts, [collection]: [...facts[collection], collection === 'education'
@@ -13,7 +13,7 @@ export function ReviewPage({ facts, targetRole, jobDescription, file, fileInput,
   return <div className="review-page">
     {fileInput}
     <header className="review-topbar"><div className="review-brand"><span className="wordmark">简历</span><span className="breadcrumb-divider">/</span><span>材料核对</span></div><button className="back-link" type="button" onClick={onBack}><ArrowLeft size={17} />返回首页</button></header>
-    <div className="review-intro"><div><p className="eyebrow">你的经历，值得被认真看见</p><h1 ref={heading} tabIndex={-1}>核对你的材料</h1><p>先把事实核对好，专业表达交给我们。</p></div><div className="review-file"><FileText size={22} /><span>{file?.name || '在线填写的材料'}</span><button type="button" onClick={onChooseFile} disabled={busy}>更换文件</button></div></div>
+    <div className="review-intro"><div><p className="eyebrow">你的经历，值得被认真看见</p><h1 ref={heading} tabIndex={-1}>核对你的材料</h1><p>先把事实核对好，专业表达交给我们。</p></div><div className="review-file"><FileText size={22} /><span>{file?.name || '在线填写的材料'}</span><div><button type="button" onClick={onOpenTemplates} disabled={busy}>查看模板</button><button type="button" onClick={onChooseFile} disabled={busy}>更换文件</button></div></div></div>
     <div className="review-layout">
       <aside className="review-sidebar"><p className="nav-label">材料目录</p><nav aria-label="材料目录">{sections.map(([id, label]) => <a key={id} href={`#review-${id}`} onClick={e => { e.preventDefault(); document.getElementById(`review-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>{label}<ArrowUpRight size={13} /></a>)}</nav><p className="review-side-note">逐段核对真实信息。<br />内容可编辑，无需填写<br />专业的写作指令。</p></aside>
       <main className="review-main">
@@ -46,7 +46,7 @@ export function ReviewPage({ facts, targetRole, jobDescription, file, fileInput,
             <p className={status === 'error' ? 'error' : 'processing-status'} role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{statusText}</p>
             {optimizationUnavailable && <p className="runtime-inline-warning" role="status">{optimizationMessage}</p>}
             <div className="service-status">{configLoading ? '正在准备优化…' : configError ? '暂时无法开始优化，请稍后重试。' : config?.configured ? '已准备就绪' : '暂时无法开始优化，请稍后重试。'}{!config?.configured && <button type="button" className="text-button" disabled={busy || configLoading} onClick={onReadConfig}>重新检查</button>}</div>
-            <p className="preview-note">继续后会先诊断材料并最多提出 3 个必要问题；你可以跳过问题，直接按现有事实优化。</p>
+            <p className="preview-note">继续后会先诊断材料，并提出所有确实影响表达的必要问题；你可以全部跳过，直接按现有事实优化。</p>
             <div className="review-actions"><button type="button" className="button secondary" disabled={busy} onClick={onSave}>保存事实修改</button><button type="submit" className="button primary" disabled={busy || configLoading || !config?.configured || optimizationUnavailable}>{status === 'diagnosing' ? '正在检查材料…' : '检查材料并继续'}<ArrowUpRight size={18} /></button></div>
           </div>
         </form>

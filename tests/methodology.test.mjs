@@ -19,8 +19,8 @@ test('JD activates T01 while ordinary optimization does not waste prompt space o
 
 test('prompt assembly exposes stable sections and keeps user material outside the system prompt', () => {
   const result = buildPromptSections('optimize', { facts, targetRole: '数据分析', jobDescription: '要求 SQL' });
-  assert.deepEqual(result.sections.map(section => section.id), ['identity', 'trust-boundary', 'methodology', 'task', 'schema']);
-  assert.ok(result.sections.every(section => ['static', 'version', 'stage'].includes(section.stability)));
+  assert.deepEqual(result.sections.map(section => section.id), ['identity', 'trust-boundary', 'methodology', 'career-knowledge', 'career-boundary', 'task', 'resume-structure', 'schema']);
+  assert.ok(result.sections.every(section => ['static', 'version', 'stage', 'turn'].includes(section.stability)));
   assert.ok(result.ruleIds.includes('T01'));
   assert.ok(!result.sections.map(section => section.content).join('\n').includes(facts.sourceBlocks[0].text));
 });
@@ -32,7 +32,8 @@ test('diagnosis proposes a conservative rewrite and generated skill headings are
   const optimizePrompt = buildPromptSections('optimize', { facts, targetRole: '数据分析', jobDescription: '' });
   assert.match(optimizePrompt.sections.find(section => section.id === 'task').content, /heading 必须固定为“技能”/);
   assert.match(optimizePrompt.sections.find(section => section.id === 'task').content, /完整、来源明确的经历、职责、过程和结果必须保留/);
-  assert.match(optimizePrompt.sections.find(section => section.id === 'task').content, /同一项目、同一阶段内连续的执行、方法与该项目可核对结果/);
+  assert.match(optimizePrompt.sections.find(section => section.id === 'task').content, /同一编号职责内连续的执行、方法与可核对结果/);
+  assert.match(optimizePrompt.sections.find(section => section.id === 'career-boundary').content, /不得制造目标行业经验/);
   assert.match(optimizePrompt.sections.find(section => section.id === 'methodology').content, /E04/);
 });
 
